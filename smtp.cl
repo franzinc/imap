@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.5 2001/08/10 15:00:59 jkf Exp $
+;; $Id: smtp.cl,v 1.6 2002/06/17 19:41:42 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -253,7 +253,7 @@
 	(ok))
     
     (if* (null ipaddr)
-       then (error "Can't determine ip addres for mail server ~s" server))
+       then (error "Can't determine ip address for mail server ~s" server))
     
     (setq sock (socket:make-socket :remote-host ipaddr
 				   :remote-port 25  ; smtp
@@ -470,9 +470,18 @@
 	    (if* (or (eq socket:*dns-mode* :acldns)
 		     (member :acldns socket:*dns-mode* :test #'eq))
 	       then (let ((res (socket:dns-query name :type :mx)))
-		      (if* (and res (consp res))
+		      (if* (and (consp res) (cadr res))
 			 then (cadr res) ; the ip address
-			 else (socket:dns-query name :type :a)))
+			 else (dolist (suffix socket::*domain-search-list*
+					(socket:dns-lookup-hostname name))
+				(declare (special socket:*domain-search-list*))
+				(let ((name 
+				       (concatenate 'string name "." suffix)))
+				  (setq res (socket:dns-query name :type :mx))
+				  (if* (and res (cadr res))
+				     then (return (cadr res)))))))
+			      
+			      
 	       else ; just do a hostname lookup
 		    (ignore-errors (socket:lookup-hostname name))))))
 		    

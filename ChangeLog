@@ -1,3 +1,8 @@
+2002-06-17  Kevin Layer  <layer@crikey>
+
+	* smtp.cl: fix typo in error message; fix from jkf that never got
+	committed regarding dns lookups of mx host
+
 2002-02-11  John Foderaro  <jkf@tiger.franz.com>
 
 	* imap.cl: fix parse-mail-header to handle valueless header lines
