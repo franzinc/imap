@@ -20,9 +20,21 @@ protocol.&nbsp;&nbsp; It is <strong>not</strong> an upward compatible successor.
 protocol.&nbsp;&nbsp;&nbsp; Only one small section describes the functions in the <strong>pop</strong>
 interface.</p>
 
-<p align="left">This document and interface is based on the Imap4rev1 protocol described
-in rfc2060.&nbsp;&nbsp; Where this document is describing the actions of the imap commands
-it should be considered a secondary source of information about those commands and rfc2060
+<p align="left">The contents of this document are:</p>
+
+<ul>
+  <li><p align="left">the <strong>imap</strong> interface</p>
+  </li>
+  <li><p align="left"><a href="#pop">the <strong>pop</strong> interface</a></p>
+  </li>
+  <li><p align="left"><a href="#smtp">the <strong>smtp</strong> interface</a> (used for
+    sending mail)</p>
+  </li>
+</ul>
+
+<p align="left">The imap interface is based on the Imap4rev1 protocol described in
+rfc2060.&nbsp;&nbsp; Where this document is describing the actions of the imap commands it
+should be considered a secondary source of information about those commands and rfc2060
 should be considered the primary source.</p>
 
 <p align="left">The advantages of <strong>imap</strong> over <strong>pop</strong> are:</p>
@@ -68,12 +80,12 @@ between simple names to create a hierarchical name (in this example &quot;/&quot
 separator character). </p>
 
 <p align="left">Each mailbox has an associated unique number called its <strong>uidvalidity</strong>.
-&nbsp;&nbsp;&nbsp; This number won't change as long as only <strong>imap</strong> is the
-only program used to manipulate the mailbox.&nbsp;&nbsp; In fact if you see that the
-number has changed then that means that some other program has done something to the
-mailbox that destroyed the information that <strong>imap</strong> had been keeping about
-the mailbox.&nbsp;&nbsp;&nbsp; In particular you can't now retrieve messages by their
-unique ids that you had used before.</p>
+&nbsp;&nbsp;&nbsp; This number won't change as long as <strong>imap</strong> is the only
+program used to manipulate the mailbox.&nbsp;&nbsp; In fact if you see that the number has
+changed then that means that some other program has done something to the mailbox that
+destroyed the information that <strong>imap</strong> had been keeping about the
+mailbox.&nbsp;&nbsp;&nbsp; In particular you can't now retrieve messages by their unique
+ids that you had used before.</p>
 
 <h1 align="left">Messages</h1>
 
@@ -816,7 +828,7 @@ t
 
 <p align="left">&nbsp;</p>
 
-<h1>The Pop interface</h1>
+<h1><a name="pop"></a>The Pop interface</h1>
 
 <p>The <strong>pop</strong> protocol is a very simple means for retreiving messages from a
 single mailbox.&nbsp;&nbsp;&nbsp;&nbsp; The functions in the interface are:</p>
@@ -882,6 +894,67 @@ have behavior similar to that of the <strong>imap</strong> version of <strong>no
 we don't send a 'noop' command to the pop server, instead we send a 'stat' command.
 &nbsp;&nbsp; This means that after this command is completed the <strong>mailbox-message-count</strong>
 will contain the current count of messages in the mailbox.</p>
+
+<p>&nbsp;</p>
+
+<h1><a name="smtp"></a>The smtp interface</h1>
+
+<p>With the smtp interface, a Lisp program can contact a mail server and send electronic
+mail.&nbsp;&nbsp; The contents of the message must be a simple text string.&nbsp; There is
+no provision for encoding binary data and sending it as a Mime attachment.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(send-letter mail-server from to message &amp;key
+subject reply-to)</strong></font></p>
+
+<p><strong>mail-server</strong> can be a string naming a machine or an integer IP address.
+&nbsp; The <strong>mail-server</strong> is contacted and asked to send a <strong>message</strong>
+(a string) <strong>from</strong> a given email address <strong>to</strong> a given email
+address or list of addresses.&nbsp;&nbsp; The email addresses must be of the form
+&quot;foo&quot; or <a href="mailto:foo@bar.com">&quot;foo@bar.com&quot;</a>.&nbsp; You can
+<strong>not</strong> use addresses like <a href="mailto:Joe%20%3cfoo@bar.com%3e">&quot;Joe
+&lt;foo@bar.com&gt;&quot;</a> or <a href="mailto:(Joe)%20foo@bar.com">&quot;(Joe)
+foo@bar.com&quot;</a>.&nbsp;&nbsp; </p>
+
+<p>A mail header is built and prepended to the <strong>message</strong> before it is sent.
+&nbsp; The mail header includes a <strong>From </strong>and <strong>To</strong> line and
+will optionally include a&nbsp; <strong>Subject</strong> and <strong>Reply-To</strong>
+line if those are given in the call to <strong>send-letter.</strong>.</p>
+
+<p>The text of the <strong>message</strong> should be lines separated by #\newline's.
+&nbsp;&nbsp; The <strong>smtp</strong> interface will automatically insert the necessary
+#\returns's when it transmits the message to the mail server.</p>
+
+<p>&nbsp;</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(send-smtp mail-server from to &amp;rest messages)</strong></font></p>
+
+<p><strong>mail-server</strong> can be a string naming a machine or an integer IP address.
+&nbsp; The <strong>mail-server</strong> is contacted and asked to send a&nbsp; message <strong>from</strong>
+a given email address <strong>to</strong> a given email address or list of addresses.
+&nbsp;&nbsp; The email addresses must be of the form &quot;foo&quot; or <a
+href="mailto:foo@bar.com">&quot;foo@bar.com&quot;</a>.&nbsp; You can <strong>not</strong>
+use addresses like <a href="mailto:Joe%20%3cfoo@bar.com%3e">&quot;Joe
+&lt;foo@bar.com&gt;&quot;</a> or <a href="mailto:(Joe)%20foo@bar.com">&quot;(Joe)
+foo@bar.com&quot;</a>.&nbsp;&nbsp; </p>
+
+<p>The message sent is a concatenation of all of the <strong>messages</strong> (which
+should be strings).&nbsp;&nbsp; A header is <strong>not</strong> prepended to the message.
+&nbsp; This means that the application program can build its own header if it wants to
+include in that header more than <strong>send-letter</strong> supports (e.g. a Mime
+encoded attachment).&nbsp; If no header is provided then some mail servers (e.g. <strong>sendmail</strong>)
+will notice this fact and will automatically create a header.</p>
+
+<p>The text of the <strong>messages</strong> should be lines separated by #\newline's.
+&nbsp;&nbsp; The <strong>smtp</strong> interface will automatically insert the necessary
+#\returns's when it transmits the message to the mail server.</p>
+
+<p>&nbsp;</p>
+
+<p>&nbsp;</p>
 
 <p>&nbsp;</p>
 

@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.4 1999/09/27 20:26:15 jkf Exp $
+;; $Id: imap.cl,v 1.5 1999/09/29 16:25:23 jkf Exp $
 
 ;; Description:
 ;;
@@ -84,7 +84,7 @@
 (in-package :post-office)
 
 
-(defparameter *imap-version-number* '(:major 1 :minor 0)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 1)) ; major.minor
 
 (defvar *debug-imap* nil)
 

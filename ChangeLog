@@ -1,3 +1,12 @@
+1999-09-29  John Foderaro  <jkf@tiger.franz.com>
+version 1.1
+	
+	* imap.html - document send-letter, send-smtp 
+	* smtp.cl - add this to the imap module
+	* t-imap.cl - adjust for the change in package
+	
+	  
+
 1999-09-27  John Foderaro  <jkf@tiger.franz.com>
 version 1.0
 	* start ChangeLog.

@@ -66,7 +66,7 @@
     
 	  ;; send five letters
 	  (dotimes (i 5)
-	    (smtp:send-smtp *test-machine*
+	    (po:send-smtp *test-machine*
 			    *test-email*
 			    *test-email*
 			    (format nil "message number ~d" (1+ i))))
