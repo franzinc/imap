@@ -1,3 +1,9 @@
+2004-09-14  Kevin Layer  <layer@gemini>
+
+	* smtp.cl:
+	- add new exported `send-smtp-auth' (from dancy)
+	- add `login' and `password' keywords to send-letter
+
 2004-08-13  Kevin Layer  <layer@gemini>
 imap 1.13
 
