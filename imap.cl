@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.14 2000/06/06 15:53:07 jkf Exp $
+;; $Id: imap.cl,v 1.15 2000/06/08 14:31:11 jkf Exp $
 
 ;; Description:
 ;;
@@ -75,6 +75,7 @@
    #:make-imap-connection
    #:make-pop-connection
    #:noop
+   #:parse-mail-header
    #:top-lines	; pop only
    #:unique-id  ; pop only
    
@@ -94,7 +95,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 6)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 7)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -1257,12 +1258,12 @@
 
 
 
-(defun make-envelope-from-text (text)
-  ;; given at least the headers part of a message return
-  ;; an envelope structure containing the contents
-  ;; This is useful for parsing the headers of things returned by
-  ;; a pop server
-  ;;
+(defun parse-mail-header (text)  
+  ;; given the partial text of a mail message that includes
+  ;; at least the header part, return an assoc list of
+  ;; (header . content)  items
+  ;; Note that the header is string with most likely mixed case names
+  ;; as it's conventional to capitalize header names.
   (let ((next 0)
 	(end (length text))
 	header
@@ -1356,20 +1357,30 @@
 		   (setf (cdr (car headers))
 		     (concatenate 'string (cdr (car headers))
 				  " " 
-				  value))))))
-      
-      (make-envelope
-       :date     (cdr (assoc "date" headers :test #'equalp))
-       :subject  (cdr (assoc "subject" headers :test #'equalp))
-       :from     (cdr (assoc "from" headers :test #'equalp))
-       :sender   (cdr (assoc "sender" headers :test #'equalp))
-       :reply-to (cdr (assoc "reply-to" headers :test #'equalp))
-       :to       (cdr (assoc "to" headers :test #'equalp))
-       :cc       (cdr (assoc "cc" headers :test #'equalp))
-       :bcc      (cdr (assoc "bcc" headers :test #'equalp))
-       :in-reply-to (cdr (assoc "in-reply-to" headers :test #'equalp))
-       :message-id (cdr (assoc "message-id" headers :test #'equalp))
-       ))))
+				  value)))))))
+    headers))
+
+
+(defun make-envelope-from-text (text)
+  ;; given at least the headers part of a message return
+  ;; an envelope structure containing the contents
+  ;; This is useful for parsing the headers of things returned by
+  ;; a pop server
+  ;;
+  (let ((headers (parse-mail-header text)))
+  
+    (make-envelope
+     :date     (cdr (assoc "date" headers :test #'equalp))
+     :subject  (cdr (assoc "subject" headers :test #'equalp))
+     :from     (cdr (assoc "from" headers :test #'equalp))
+     :sender   (cdr (assoc "sender" headers :test #'equalp))
+     :reply-to (cdr (assoc "reply-to" headers :test #'equalp))
+     :to       (cdr (assoc "to" headers :test #'equalp))
+     :cc       (cdr (assoc "cc" headers :test #'equalp))
+     :bcc      (cdr (assoc "bcc" headers :test #'equalp))
+     :in-reply-to (cdr (assoc "in-reply-to" headers :test #'equalp))
+     :message-id (cdr (assoc "message-id" headers :test #'equalp))
+     )))
 
 		  
 	      

@@ -689,8 +689,8 @@ user(4): (mailbox-message-count mb)
 </div>
 
 <p align="left"><strong>There are seven messages at the moment.&nbsp;&nbsp; Fetch the
-whole 4th message.&nbsp; We could call (fetch-letter mb 4) here instead and then not
-have to call fetch-field later.</strong></p>
+whole 4th message.&nbsp; We could call (fetch-letter mb 4) here instead and then not have
+to call fetch-field later.</strong></p>
 <div align="left">
 
 <pre>
@@ -1011,6 +1011,18 @@ have behavior similar to that of the <strong>imap</strong> version of <strong>no
 we don't send a 'noop' command to the pop server, instead we send a 'stat' command.
 &nbsp;&nbsp; This means that after this command is completed the <strong>mailbox-message-count</strong>
 will contain the current count of messages in the mailbox.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(parse-mail-header text)</strong></font></p>
+
+<p><strong>text</strong> is a string that is the first part of a mail message, including
+at least all of the headers lines and the blank line following the headers.&nbsp; This
+function parses the header lines and returns an assoc list where each item has the form <strong>
+(header . value)</strong>.&nbsp;&nbsp; Both the <strong>header</strong> and <strong>value</strong>
+are strings.&nbsp; Note that header names will most likely be mixed case (but this is not
+a requirment) so you'll want to use <strong>:test #'equalp</strong> when searching for a
+particular header with <strong>assoc</strong>. </p>
 
 <p>&nbsp;</p>
 
