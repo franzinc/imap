@@ -1,3 +1,8 @@
+2001-08-20  John Foderaro  <jkf@tiger.franz.com>
+
+	* imap.cl (parse-mail-header): fix parse when a #\return was found 
+		in the header. [bug11124]
+
 *******************************************************************************
 merge from trunk to acl61 branch
 command: ../../join.sh trunk acl61 trunk_to_acl61_merge1 imap
