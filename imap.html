@@ -1,13 +1,13 @@
 <html>
 
 <head>
-<title>Allegro CL imap interface</title>
+<title>Allegro CL imap and pop interface</title>
 <meta name="GENERATOR" content="Microsoft FrontPage 3.0">
 </head>
 
 <body>
 
-<h1 align="center">Allegro CL imap interface</h1>
+<h1 align="center">Allegro CL imap and pop interface</h1>
 
 <p align="left">copyright (c) 1999 Franz Inc.</p>
 
@@ -15,11 +15,14 @@
 
 <p align="left"><strong>imap</strong> is a client-server protocol for processing
 electronic mail boxes.&nbsp; <strong>imap </strong>is the successor to the <strong>pop</strong>
-protocol.&nbsp;&nbsp; It is not an upward compatible successor.</p>
+protocol.&nbsp;&nbsp; It is <strong>not</strong> an upward compatible successor.
+&nbsp;&nbsp;&nbsp;&nbsp; The main focus of this document is the <strong>imap</strong>
+protocol.&nbsp;&nbsp;&nbsp; Only one small section describes the functions in the <strong>pop</strong>
+interface.</p>
 
 <p align="left">This document and interface is based on the Imap4rev1 protocol described
 in rfc2060.&nbsp;&nbsp; Where this document is describing the actions of the imap commands
-it should be considered a secondary source of information about those command and rfc2060
+it should be considered a secondary source of information about those commands and rfc2060
 should be considered the primary source.</p>
 
 <p align="left">The advantages of <strong>imap</strong> over <strong>pop</strong> are:</p>
@@ -43,6 +46,13 @@ should be considered the primary source.</p>
     making subsequent searching easier.</p>
   </li>
 </ol>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Package</h1>
+
+<p align="left">The functions in this interface are defined in the <strong>post-office</strong>
+package which has a nickname <strong>po</strong>.</p>
 
 <p align="left">&nbsp;</p>
 
@@ -144,7 +154,7 @@ select a mailbox using <strong>select-mailbox</strong> shortly after connecting.
 
 <p align="left">&nbsp;</p>
 
-<p align="left"><strong><font face="Courier New">(close-imap-connection mailbox)</font></strong></p>
+<p align="left"><strong><font face="Courier New">(close-connection mailbox)</font></strong></p>
 
 <p align="left">This sends a <strong>logout</strong> command to the <strong>imap</strong>
 server and then closes the socket that's communicating with the <strong>imap</strong>
@@ -324,20 +334,29 @@ string just as used in the call to <strong>fetch-letter</strong>.</p>
 
 <p align="left">&nbsp;</p>
 
-<p align="left"><font face="Courier New"><strong>(fetch-letter mailbox messages parts
+<p align="left"><strong><font face="Courier New">(fetch-letter mailbox message &amp;key
+uid)</font></strong></p>
+
+<p align="left">Return the complete message, headers and body, as one big string. &nbsp;
+This is a combination of <strong>fetch-field</strong> and <strong>fetch-parts</strong>
+where the part specification is &quot;body[]&quot;.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(fetch-parts mailbox messages parts
 &amp;key uid)</strong></font></p>
 
 <p align="left">retrieves the specified <strong>parts</strong> of the specified <strong>messages.
 &nbsp;&nbsp; </strong>If <strong>uid</strong> is true then the <strong>messages</strong>
 are considered to be unique ids rather than message sequence numbers.
 &nbsp;&nbsp;&nbsp;&nbsp; The description of what can be specified for <strong>parts </strong>is
-quite complex and has been moved to the section below &quot;Fetching a Letter&quot;.</p>
+quite complex and is described in the section below &quot;Fetching a Letter&quot;.</p>
 
 <p align="left">The return value from this function is a structure that can be examined
 with <strong>fetch-field</strong>.</p>
 
 <p align="left">When the result returned includes an envelope value the following
-functions can be used to extract&nbsp; the parts of the envelope:</p>
+functions can be used to extract&nbsp; the components of the envelope:</p>
 
 <ul>
   <li><p align="left"><font face="Courier New"><strong>envelope-date</strong></font></p>
@@ -443,7 +462,7 @@ next message.</p>
 
 <h1 align="left">Fetching a Letter</h1>
 
-<p align="left">When using <strong>fetch-letter</strong> to access letters, you must
+<p align="left">When using <strong>fetch-parts</strong> to access letters, you must
 specify the parts of the messages in which you're interested.&nbsp;&nbsp; There are a wide
 variety of specifiers, some redundant and overlapping, described in the imap specification
 in rfe2060.&nbsp; We'll describe the most common ones here.&nbsp;&nbsp; The specification
@@ -454,7 +473,8 @@ the string, e.g. &quot;(flags envelope)&quot;.&nbsp;&nbsp; </p>
 
 <ul>
   <li><p align="left"><strong>body[]</strong> - this returns the full message: headers and
-    body.</p>
+    body.&nbsp;&nbsp; You can use <strong>fetch-letter</strong> if you only want this part and
+    you want to avoid having to call <strong>fetch-field</strong>.</p>
   </li>
   <li><p align="left"><strong>body[text]</strong> - this returns just the the text of the body
     of the message, not the header.</p>
@@ -474,7 +494,7 @@ the string, e.g. &quot;(flags envelope)&quot;.&nbsp;&nbsp; </p>
 
 <p align="left">&nbsp;</p>
 
-<p align="left">The result of a <strong>fetch-letter</strong> is a data structure
+<p align="left">The result of a <strong>fetch-parts</strong> is a data structure
 containing all of the requested information.&nbsp;&nbsp; The <strong>fetch-field</strong>
 function is then used to extract the particular information for the particular message.</p>
 
@@ -606,7 +626,7 @@ these forms:</p>
 <p align="left"><strong>Connect to the imap server on the machine holding the email:</strong></p>
 <div align="left">
 
-<pre>user(2): (setq mb (mb:make-imap-connection &quot;mailmachine.franz.com&quot; 
+<pre>user(2): (setq mb (po:make-imap-connection &quot;mailmachine.franz.com&quot; 
                             :user &quot;myacct&quot; 
                             :password &quot;mypasswd&quot;))
 #&lt;mailbox::imap-mailbox @ #x2064ca4a&gt;</pre>
@@ -618,7 +638,7 @@ these forms:</p>
 <div align="left">
 
 <pre>
-user(3): (mb:select-mailbox mb &quot;inbox&quot;)
+user(3): (po:select-mailbox mb &quot;inbox&quot;)
 t</pre>
 </div>
 
@@ -628,16 +648,17 @@ t</pre>
 <div align="left">
 
 <pre>
-user(4): (mb:mailbox-message-count mb)
+user(4): (po:mailbox-message-count mb)
 7</pre>
 </div>
 
 <p align="left"><strong>There are seven messages at the moment.&nbsp;&nbsp; Fetch the
-whole 4th message</strong></p>
+whole 4th message.&nbsp; We could call (po:fetch-letter mb 4) here instead and then not
+have to call fetch-field later.</strong></p>
 <div align="left">
 
 <pre>
-user(5): (setq body (mb:fetch-letter mb 4 &quot;body[]&quot;))
+user(5): (setq body (po:fetch-parts mb 4 &quot;body[]&quot;))
 ((4
 (&quot;BODY[]&quot; &quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
 Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
@@ -657,7 +678,7 @@ information we want we use fetch-field:</strong></p>
 <div align="left">
 
 <pre>
-user(6): (mb:fetch-field 4 &quot;body[]&quot; body)
+user(6): (po:fetch-field 4 &quot;body[]&quot; body)
 &quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
 Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with SMTP id LAA20261
@@ -676,9 +697,9 @@ that message.</strong></p>
 <div align="left">
 
 <pre>
-user(7): (mb:search-mailbox mb '(:text &quot;blitzfig&quot;))
+user(7): (po:search-mailbox mb '(:text &quot;blitzfig&quot;))
 (7)
-user(8): (mb:fetch-field 7 &quot;body[]&quot; (mb:fetch-letter mb 7 &quot;body[]&quot;))
+user(8): (po:fetch-field 7 &quot;body[]&quot; (po:fetch-letter mb 7 &quot;body[]&quot;))
 &quot;Return-Path: &lt;jkf@verada.com&gt;
 Received: from main.verada.com (main.verada.com [208.164.216.3])
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
@@ -697,16 +718,16 @@ ok?
 &quot;</pre>
 </div>
 
-<p align="left"><strong>We've been using message sequence numbers up to now.
-&nbsp;&nbsp; The are the simplest to use but if you're concerned with keeping track of
-messages when deletions are being done then using unique id's is useful.&nbsp;&nbsp; Here
-we do the above search example using uids:</strong></p>
+<p align="left"><strong>We've been using message sequence numbers up to now. &nbsp;&nbsp;
+The are the simplest to use but if you're concerned with keeping track of messages when
+deletions are being done then using unique id's is useful.&nbsp;&nbsp; Here we do the
+above search example using uids:</strong></p>
 <div align="left">
 
 <pre>
-user(9): (mb:search-mailbox mb '(:text &quot;blitzfig&quot;) :uid t)
+user(9): (po:search-mailbox mb '(:text &quot;blitzfig&quot;) :uid t)
 (68)
-user(10): (mb:fetch-field 68 &quot;body[]&quot; (mb:fetch-letter mb 68 &quot;body[]&quot; :uid t) :uid t)
+user(10): (po:fetch-field 68 &quot;body[]&quot; (po:fetch-letter mb 68 &quot;body[]&quot; :uid t) :uid t)
 &quot;Return-Path: &lt;jkf@verada.com&gt;
 Received: from main.verada.com (main.verada.com [208.164.216.3])
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
@@ -730,9 +751,9 @@ we have only six messages in the mailbox.</strong></p>
 <div align="left">
 
 <pre>
-user(11): (mb:delete-letter mb 68 :uid t)
+user(11): (po:delete-letter mb 68 :uid t)
 (7)
-user(12): (mb:mailbox-message-count mb)
+user(12): (po:mailbox-message-count mb)
 6</pre>
 </div>
 
@@ -744,9 +765,9 @@ do we issue the noop command, which does nothing on the server.</strong></p>
 <div align="left">
 
 <pre>
-user(13): (mb:noop mb)
+user(13): (po:noop mb)
 nil
-user(14): (mb:mailbox-message-count mb)
+user(14): (po:mailbox-message-count mb)
 7</pre>
 </div>
 
@@ -757,13 +778,13 @@ to specify a sequence of messages.</strong></p>
 <div align="left">
 
 <pre>
-user(15): (mb:create-mailbox mb &quot;tempbox&quot;)
+user(15): (po:create-mailbox mb &quot;tempbox&quot;)
 t
-user(18): (let ((count (mb:mailbox-message-count mb)))
-(mb:copy-to-mailbox mb `(:seq 1 ,count) &quot;tempbox&quot;)
-(mb:delete-letter mb `(:seq 1 ,count)))
+user(18): (let ((count (po:mailbox-message-count mb)))
+(po:copy-to-mailbox mb `(:seq 1 ,count) &quot;tempbox&quot;)
+(po:delete-letter mb `(:seq 1 ,count)))
 (1 1 1 1 1 1 1)
-user(19): (mb:mailbox-message-count mb)
+user(19): (po:mailbox-message-count mb)
 0</pre>
 </div>
 
@@ -773,9 +794,9 @@ messages are there.</strong></p>
 <div align="left">
 
 <pre>
-user(22): (mb:select-mailbox mb &quot;tempbox&quot;)
+user(22): (po:select-mailbox mb &quot;tempbox&quot;)
 t
-user(23): (mb:mailbox-message-count mb)
+user(23): (po:mailbox-message-count mb)
 7</pre>
 </div>
 
@@ -788,12 +809,81 @@ the lisp side in order to free up the resources still in use for the now dead co
 <div align="left">
 
 <pre>
-user(24): (mb:close-imap-connection mb)
+user(24): (po:close-connection mb)
 t
 </pre>
 </div>
 
 <p align="left">&nbsp;</p>
+
+<h1>The Pop interface</h1>
+
+<p>The <strong>pop</strong> protocol is a very simple means for retreiving messages from a
+single mailbox.&nbsp;&nbsp;&nbsp;&nbsp; The functions in the interface are:</p>
+
+<p>&nbsp;</p>
+
+<p align="left"><font face="Courier New">(<strong>make-pop-connection host &amp;key user
+password port timeout)</strong></font></p>
+
+<p align="left">This creates a connection to the <strong>pop</strong> server on machine <strong>host</strong>
+and logs in as <strong>user </strong>with password <strong>password.&nbsp;&nbsp; </strong>The
+<strong>port</strong> argument defaults to 110, which is the port on which the <strong>pop</strong>
+server normally listens.&nbsp;&nbsp;&nbsp; The <strong>timeout</strong> argument defaults
+to 30 (seconds) and this value is used to limit the amount of time this pop interface code
+will wait for a response from the server before giving up.&nbsp;&nbsp;&nbsp; In certain
+circumstances the server may get so busy that you see timeout errors signaled in this
+code.&nbsp; In that case you should specify a larger timeout when connecting. </p>
+
+<p>The value returned by this function is a <strong>mailbox</strong> object.&nbsp; You can
+call <strong>mailbox-message-count</strong> on the <strong>mailbox</strong> object to
+determine how many letters are currently stored in the mailbox.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(close-connection mb)</strong></font></p>
+
+<p>Disconnect from the pop server.&nbsp; All messages marked for deletion will be deleted.</p>
+
+<p>&nbsp;</p>
+
+<p><strong><font face="Courier New">(delete-letter mb messages)</font></strong></p>
+
+<p>Mark the specified <strong>messages</strong> for deletion.&nbsp; <strong>mb </strong>is
+the mailbox object returned by <strong>make-pop-connection</strong>.&nbsp; The messages
+are only&nbsp; marked for deletion.&nbsp; They are not removed until a <strong>close-connection</strong>
+is done.&nbsp; If the connection to the <strong>pop</strong> server is broken before a <strong>close-connection</strong>
+is done, the messages will <strong>not</strong> be deleted and they will no longer be
+marked for deletion either.</p>
+
+<p><strong>messages</strong> can either be a message number, a list of the form <strong>(:seq
+N M)</strong> meaning messages <strong>N </strong>through <strong>M </strong>or it can be
+a list of message numbers and/or <strong>:seq </strong>specifiers.&nbsp;&nbsp; The
+messages in a mailbox are numbered starting with one.&nbsp; Marking a message for deletion
+does not affect the numbering of other messages in the mailbox.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(fetch-letter mb message)</strong></font></p>
+
+<p>Fetch from the pop server connection <strong>mb</strong> the letter numbered <strong>message</strong>.
+&nbsp;&nbsp; The letters in a mailbox are numbered starting with one.&nbsp; The entire
+message, including the headers,&nbsp; is returned as a string.&nbsp;&nbsp;&nbsp; It is an
+error to attempt to fetch a letter marked for deletion.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(noop mb)</strong></font></p>
+
+<p>This is the no-operation command.&nbsp; It is useful for letting the <strong>pop</strong>
+server know that this connection should be kept alive (<strong>pop </strong>servers tend
+to disconnect after a few minutes of inactivity).&nbsp;&nbsp; In order to make <strong>noop</strong>
+have behavior similar to that of the <strong>imap</strong> version of <strong>noop</strong>,
+we don't send a 'noop' command to the pop server, instead we send a 'stat' command.
+&nbsp;&nbsp; This means that after this command is completed the <strong>mailbox-message-count</strong>
+will contain the current count of messages in the mailbox.</p>
+
+<p>&nbsp;</p>
 
 <p>&nbsp;</p>
 </body>

@@ -1,8 +1,8 @@
 ;; imap protocol
 ;; (with hooks for pop too)
 
-(defpackage :mailbox
-  (:nicknames :mb)
+(defpackage :post-office
+  (:nicknames :po)
   (:use :lisp :excl)
   (:export 
    #:address-name
@@ -11,7 +11,7 @@
    #:address-host
    
    #:alter-flags
-   #:close-imap-connection
+   #:close-connection
    #:close-mailbox
    #:copy-to-mailbox
    #:create-mailbox
@@ -32,6 +32,8 @@
    #:expunge-mailbox
    #:fetch-field
    #:fetch-letter
+   #:fetch-parts
+   #:*imap-version-number*
    #:mailbox-flags      ; accessor
    #:mailbox-permanent-flags ; acc
    #:mailbox-list
@@ -43,6 +45,7 @@
    #:mailbox-separator  ; accessor
    #:mailbox-uidvalidity
    #:make-imap-connection
+   #:make-pop-connection
    #:noop
    #:rename-mailbox
    #:search-mailbox
@@ -50,41 +53,26 @@
    )
   )
 
-(in-package :mailbox)
+(in-package :post-office)
 
-; kinds of things that come back from the server
-; <tag> OK random text 
-; <tag> OK [atom] random text 
-; <tag> OK [atom value] random text
-; * <number> atom random text
-; * LIST (atom ...) string string
-; * STATUS mboxname (atom value .... ...)
-; * CAPABILITY atom ...
 
-; our parsing will return
-; tag
-;    a string or :untagged or :continue
-; command 
-;    the string like "OK" which describes what this response is saying
-; args
-;    list of arguments.
-;       
+(defparameter *imap-version-number* '(:major 1 :minor 0)) ; major.minor
 
 (defvar *debug-imap* nil)
 
 
-(defclass mailbox ()
+(defclass post-office ()
   ((socket :initarg :socket
-	   :accessor mailbox-socket)
+	   :accessor post-office-socket)
    
    (host :initarg :host
-	 :accessor  mailbox-host
+	 :accessor  post-office-host
 	 :initform nil)
    (user  :initarg :user
-	  :accessor mailbox-user
+	  :accessor post-office-user
 	  :initform nil)
    
-   (state :accessor mailbox-state
+   (state :accessor post-office-state
 	  :initarg :state
 	  :initform :unconnected)
    
@@ -96,7 +84,7 @@
     :accessor timeout) 
   ))
 
-(defclass imap-mailbox (mailbox)
+(defclass imap-mailbox (post-office)
   ((mailbox-name   ; currently selected mailbox
     :accessor mailbox-name
     :initform nil)
@@ -136,13 +124,15 @@
     :accessor first-unseen
     :initform 0)
    
-   ;;; end list of values for the currently selected maibox
+   ;;; end list of values for the currently selected mailbox
    )
   )
 
 
-(defclass pop-mailbox (mailbox)
-  ())
+(defclass pop-mailbox (post-office)
+  ((message-count  ; how many in the mailbox
+    :accessor mailbox-message-count
+    :initform 0)))
 
 
 
@@ -222,9 +212,9 @@
     imap))
 
 
-(defmethod close-imap-connection ((mb imap-mailbox))
+(defmethod close-connection ((mb imap-mailbox))
   
-  (let ((sock (mailbox-socket mb)))
+  (let ((sock (post-office-socket mb)))
     (if* sock
        then (ignore-errors
 	     (send-command-get-results 
@@ -238,10 +228,52 @@
 	      #'(lambda (mb command count extra)
 		  (check-for-success mb command count extra
 				     "logout")))))
-    (setf (mailbox-socket mb) nil)
+    (setf (post-office-socket mb) nil)
     (if* sock then (ignore-errors (close sock)))
     t))
 
+
+(defmethod close-connection ((pb pop-mailbox))
+  (let ((sock (post-office-socket pb)))
+    (if* sock
+       then (ignore-errors
+	     (send-pop-command-get-results 
+	      pb
+	      "QUIT")))
+    (setf (post-office-socket pb) nil)
+    (if* sock then (ignore-errors (close sock)))
+    t))
+
+
+
+(defun make-pop-connection (host &key (port 110)
+				      user
+				      password
+				      (timeout 30))
+  (let* ((sock (socket:make-socket :remote-host host
+				   :remote-port port))
+	 (pop (make-instance 'pop-mailbox
+		:socket sock
+		:host   host
+		:timeout timeout
+		:state :unauthorized)))
+    
+    (multiple-value-bind (result)
+	(get-and-parse-from-pop-server pop)
+      (if* (not (eq :ok result))
+	 then  (error "unexpected line from server after connect")))
+      
+    ; now login
+    (send-pop-command-get-results pop (format nil "user ~a" user))
+    (send-pop-command-get-results pop (format nil "pass ~a" password))
+
+    (let ((res (send-pop-command-get-results pop "stat")))
+      (setf (mailbox-message-count pop) (car res)))
+    
+    			    
+				    
+    pop))
+			    
 
 (defmethod send-command-get-results ((mb imap-mailbox) 
 				     command untagged-handler tagged-handler)
@@ -249,9 +281,9 @@
   ;; response for the command we sent
   ;;
   (let ((tag (get-next-tag)))
-    (format (mailbox-socket mb)
+    (format (post-office-socket mb)
 	    "~a ~a~a" tag command *crlf*)
-    (force-output (mailbox-socket mb))
+    (force-output (post-office-socket mb))
     
     (if* *debug-imap*
        then (format t
@@ -284,7 +316,7 @@
     (:recent (setf (mailbox-recent-messages mb) count))
     (:flags  (setf (mailbox-flags mb) (mapcar #'kwd-intern extra)))
     (:bye ; occurs when connection times out or mailbox lock is stolen
-     (ignore-errors (close (mailbox-socket mb)))
+     (ignore-errors (close (post-office-socket mb)))
      (error "connection to the imap server was closed by the server"))
     (:no ; used when grabbing a lock from another process
      (warn "grabbing mailbox lock from another process"))
@@ -304,6 +336,69 @@
 	     
   )
 
+
+
+(defun send-pop-command-get-results (pop command &optional extrap)
+  ;; if extrap is true then we're expecting data to follow an +ok
+  (format (post-office-socket pop) "~a~a" command *crlf*)
+  (force-output (post-office-socket pop))
+  
+  (if* *debug-imap*
+     then (format t "~a~a" command *crlf*)
+	  (force-output t))
+
+  (multiple-value-bind (result parsed line)
+      (get-and-parse-from-pop-server pop)
+    (if* (not (eq result :ok))
+       then (error "error from pop server: ~a" line))
+
+    (if* extrap
+       then ; get the rest of the data
+	    
+	    (let ((buf (get-line-buffer (+ (car parsed) 50)))
+		  (pos 0)
+		  ; states
+		  ;  1 - after lf
+		  ;  2 - seen dot at beginning of line
+		  ;  3 - seen regular char on line
+		  (state 1)
+		  (sock (post-office-socket pop)))
+	      (flet ((add-to-buffer (ch)
+		       (if* (>= pos (length buf))
+			  then (error "missinfomation from pop")
+			  else (setf (schar buf pos) ch)
+			       (incf pos))))
+		(loop
+		  (let ((ch (read-char sock nil nil)))
+		    (if* (null ch)
+		       then (error "premature end of file from server"))
+		    (if* (eq ch #\return)
+		       thenret ; ignore crs
+		       else (case state
+			      (1 (if* (eq ch #\.)
+				    then (setq state 2)
+				  elseif (eq ch #\linefeed)
+				    then (add-to-buffer ch)
+					 ; state stays at 1
+				    else (add-to-buffer ch)
+					 (setq state 3)))
+			      (2 ; seen first dot
+			       (if* (eq ch #\linefeed)
+				  then ; end of message
+				       (return)
+				  else (add-to-buffer ch)
+				       (setq state 3)))
+			      (3 ; normal reading
+			       (add-to-buffer ch)
+			       (if* (eq ch #\linefeed)
+				  then (setq state 1))))))))
+	      (prog1 (subseq buf 0 pos)
+		(free-line-buffer buf)))
+       else parsed)))
+  
+
+  
+  
 (defun convert-flags-plist (plist)
   ;; scan the plist looking for "flags" indicators and 
   ;; turn value into a list of symbols rather than strings
@@ -313,8 +408,8 @@
        then (setf (cadr xx) (mapcar #'kwd-intern (cadr xx))))))
 
 
-(defun select-mailbox (mb name)
-  ;; select the given maibox
+(defmethod select-mailbox ((mb imap-mailbox) name)
+  ;; select the given mailbox
   (send-command-get-results mb
 			    (format nil "select ~a" name)
 			    #'handle-untagged-response
@@ -327,8 +422,21 @@
   )
 
 
+(defmethod fetch-letter ((mb imap-mailbox) number &key uid)
+  ;; return the whole letter
+  (fetch-field number "body[]"
+	       (fetch-parts mb number "body[]" :uid uid)
+	       :uid uid))
 
-(defun fetch-letter (mb number parts &key uid)
+
+(defmethod fetch-letter ((pb pop-mailbox) number &key uid)
+  (declare (ignore uid))
+  (send-pop-command-get-results pb 
+				(format nil "RETR ~d" number) 
+				t ; extra stuff
+				))
+
+(defmethod fetch-parts ((mb imap-mailbox) number parts &key uid)
   (let (res)
     (send-command-get-results 
      mb
@@ -394,15 +502,42 @@
 					
 
 
-(defun delete-letter (mb messages &key (expunge t) uid)
+(defmethod delete-letter ((mb imap-mailbox) messages &key (expunge t) uid)
   ;; delete all the mesasges and do the expunge to make 
   ;; it permanent if expunge is true
   (alter-flags mb messages :add-flags :\\deleted :uid uid)
   (if* expunge then (expunge-mailbox mb)))
+
+(defmethod delete-letter ((pb pop-mailbox) messages  &key (expunge nil) uid)
+  ;; delete all the messages.   We can't expunge without quitting so
+  ;; we don't expunge
+  (declare (ignore expunge uid))
+  
+  (if* (or (numberp messages) 
+	   (and (consp messages) (eq :seq (car messages))))
+     then (setq messages (list messages)))
+  
+  (if* (not (consp messages))
+     then (error "expect a mesage number or list of messages, not ~s"
+		 messages))
+  
+  (dolist (message messages)
+    (if* (numberp message)
+       then (send-pop-command-get-results pb
+					  (format nil "DELE ~d" message))
+     elseif (and (consp message) (eq :seq (car message)))
+       then (do ((start (cadr message) (1+ start))
+		 (end (caddr message)))
+		((> start end))
+	      (send-pop-command-get-results pb
+					    (format nil "DELE ~d" start)))
+       else (error "bad message number ~s" message))))
+	    
+	    
 			    
 					
 
-(defun noop (mb)
+(defmethod noop ((mb imap-mailbox))
   ;; just poke the server... keeping it awake and checking for
   ;; new letters
   (send-command-get-results mb
@@ -414,6 +549,13 @@
 				 "noop"))))
 
 
+(defmethod noop ((pb pop-mailbox))
+  ;; send the stat command instead so we can update the message count
+  (let ((res (send-pop-command-get-results pb "stat")))
+      (setf (mailbox-message-count pb) (car res)))
+  )
+
+
 (defun check-for-success (mb command count extra command-string)
   (declare (ignore mb count extra))
   (if* (not (eq command :ok))
@@ -423,7 +565,7 @@
 			    
 
 
-(defun mailbox-list (mb &key (reference "") (pattern ""))
+(defmethod mailbox-list ((mb imap-mailbox) &key (reference "") (pattern ""))
   ;; return a list of mailbox names with respect to a given
   (let (res)
     (send-command-get-results mb
@@ -447,7 +589,7 @@
     ))
 
 
-(defun create-mailbox (mb mailbox-name)
+(defmethod create-mailbox ((mb imap-mailbox) mailbox-name)
   ;; create a mailbox name of the given name.
   ;; use mailbox-separator if you want to create a hierarchy
   (send-command-get-results mb
@@ -459,7 +601,7 @@
   t)
 
 
-(defun delete-mailbox (mb mailbox-name)
+(defmethod delete-mailbox ((mb imap-mailbox) mailbox-name)
   ;; create a mailbox name of the given name.
   ;; use mailbox-separator if you want to create a hierarchy
   (send-command-get-results mb
@@ -469,7 +611,7 @@
 				  (check-for-success 
 				   mb command count extra "delete"))))
 
-(defun rename-mailbox (mb old-mailbox-name new-mailbox-name)
+(defmethod rename-mailbox ((mb imap-mailbox) old-mailbox-name new-mailbox-name)
   ;; create a mailbox name of the given name.
   ;; use mailbox-separator if you want to create a hierarchy
   (send-command-get-results mb
@@ -483,7 +625,9 @@
 
 
 
-(defun alter-flags (mb messages &key (flags nil flags-p) add-flags remove-flags
+(defmethod alter-flags ((mb imap-mailbox)
+			messages &key (flags nil flags-p) 
+				      add-flags remove-flags
 				      silent uid)
   ;;
   ;; change the flags using the store command
@@ -598,7 +742,7 @@
 
 ;; search command
 
-(defun search-mailbox (mb search-expression &key uid)
+(defmethod search-mailbox ((mb imap-mailbox) search-expression &key uid)
   (let (res)
     (send-command-get-results mb
 			      (format nil "~asearch ~a" 
@@ -816,6 +960,22 @@
     ))
 
 
+
+(defmethod get-and-parse-from-pop-server ((mb pop-mailbox))
+  ;; read the next line from the pop server
+  ;; return the result of parsing it
+  (multiple-value-bind (line count)
+      (get-line-from-server mb)
+    
+    (if* *debug-imap* 
+       then (format t "from server: " count)
+	    (dotimes (i count)(write-char (schar line i)))
+	    (terpri))
+    
+    (parse-pop-response line count)))
+
+  
+  
 ;; Parse and return the data from each line
 ;; values returned
 ;;  tag -- either a string or the symbol :untagged
@@ -911,7 +1071,42 @@
        (values kind nil next))
       (t (error "bad sexpression")))))
 
+
+(defun parse-pop-response (line end)
+  ;; return values:
+  ;;   :ok or :error 
+  ;;   a list of rest of the tokens on the line
+  ;;   the whole line after the +ok or -err
+  ;;
+  (let (res lineres result)
+    (multiple-value-bind (kind value next)
+	(get-next-token line 0 end)
     
+      (case kind
+	(:string (setq result (if* (equal "+OK" value) 
+				 then :ok
+				 else :error)))
+	(t (error "bad response from server: ~s" (subseq line 0 end))))
+    
+      (setq lineres (subseq line next end))
+
+      (loop
+	(multiple-value-setq (kind value next)
+	  (get-next-token line next end))
+	
+	(case kind
+	  (:eof (return))
+	  ((:string :number) (push value res))))
+      
+      (values result (nreverse res) lineres))))
+    
+	
+    
+    
+    
+    
+      
+      
 			 
     
 (defparameter *char-to-kind*
@@ -1074,7 +1269,7 @@
   (let* ((buff (get-line-buffer 0))
 	 (len  (length buff))
 	 (i 0)
-	 (p (mailbox-socket mailbox))
+	 (p (post-office-socket mailbox))
 	 (ch nil)
 	 (whole-count) 
 	 )
@@ -1181,7 +1376,7 @@
   ;; like lisp likes).
   ;;
   (let ((buff (get-line-buffer count))
-	(p (mailbox-socket mb))
+	(p (post-office-socket mb))
 	(ind 0))
     (mp:with-timeout ((timeout mb)
 		      (error "imap server timed out"))

@@ -1,0 +1,11 @@
+1999-09-27  John Foderaro  <jkf@tiger.franz.com>
+version 1.0
+	* start ChangeLog.
+	* imap.cl - the code for the imap and pop interface
+	* imap.html - the documentation
+	* t-imap.cl - the test suite
+	* rfc1939.html - pop spec
+	* rfc2060.txt  - imap spec
+	
+	
+
