@@ -1,3 +1,7 @@
+2003-01-10  Kevin Layer  <layer@crikey>
+
+	* smtp.cl: test-email-address: do VRFY on address, too.
+
 2002-06-17  Kevin Layer  <layer@crikey>
 
 	* smtp.cl: fix typo in error message; fix from jkf that never got
