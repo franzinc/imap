@@ -177,8 +177,11 @@
     ; still from before
     (test-eql 4 (po:mailbox-message-count pb))
     
+    (test-eql 4 (length (po:unique-id pb)))
+			 
     (po:delete-letter pb '(:seq 2 3))
     
+    (test-eql 2 (length (po:unique-id pb)))
     
     (test-eql 4 (and :second (po:mailbox-message-count pb)))
     
@@ -200,6 +203,9 @@
     (test-eql 2 (and :fourth (po:mailbox-message-count pb)))
     
     (po:fetch-letter pb 1) ; just make sure there's no error
+    
+    (po:top-lines pb 1 1)  ; just make sure there's no error
+    (po:make-envelope-from-text (po:top-lines pb 1 0))
     
     (po:close-connection pb)))
 

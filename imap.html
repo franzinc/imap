@@ -900,6 +900,15 @@ error to attempt to fetch a letter marked for deletion.</p>
 
 <p>&nbsp;</p>
 
+<p><font face="Courier New"><strong>(make-envelope-from-text text)</strong></font></p>
+
+<p><strong>text</strong> is a string that is the first part of a mail message, including
+at least all of the headers lines and the blank line following the headers.&nbsp; This
+function parses the header lines and return an <strong>envelope</strong> structure
+containing information from the header.&nbsp;&nbsp;&nbsp; </p>
+
+<p>&nbsp;</p>
+
 <p><font face="Courier New"><strong>(noop mb)</strong></font></p>
 
 <p>This is the no-operation command.&nbsp; It is useful for letting the <strong>pop</strong>
@@ -912,11 +921,28 @@ will contain the current count of messages in the mailbox.</p>
 
 <p>&nbsp;</p>
 
+<p><font face="Courier New"><strong>(top-lines mb message line-count)</strong></font></p>
+
+<p>Return a string that contains all the header lines and the first <strong>line-count</strong>
+lines of the body of <strong>message</strong>.&nbsp;&nbsp; To just retrieve the headers a <strong>line-count</strong>
+of zero can be given.&nbsp; See the function <strong>make-envelope-from-text</strong> for
+a means of reading the information in the header.</p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(unique-id mb &amp;optional message)</strong></font></p>
+
+<p>Return the unique indentifier for the given message, or for all non-deleted messages if
+<strong>message</strong> is nil.&nbsp;&nbsp; The unique identifier is is a string that is
+different for every message.&nbsp;&nbsp; If <strong> </strong>the <strong>message</strong>
+argument&nbsp; is not given then this command returns a list of lists where each list
+contains two items: the message number and the unique id.</p>
+
 <h1>Cond<a name="conditions"></a>itions</h1>
 
 <p>When an unexpected event occurs a condition is signaled.&nbsp;&nbsp; This applies to
 both the <strong>imap</strong> and <strong>pop</strong> interfaces.&nbsp; There are two
-classes of conditions signaled by this package:
+classes of conditions signaled by this package: 
 
 <ul>
   <li><strong>po-condition</strong> - this class denotes conditions that need not and in fact
@@ -926,7 +952,7 @@ classes of conditions signaled by this package:
     and processed otherwise the next command issued will see messages in response to the
     previous command.&nbsp;&nbsp; Therefore the user code should never do a non-local-transfer
     in response to a <strong>po-condition.</strong></li>
-  <li><strong>po-error - </strong> this class denotes conditions that will prevent execution
+  <li><strong>po-error - </strong>this class denotes conditions that will prevent execution
     from continuing.&nbsp; If one of these errors is not caught, the interactive debugger will
     be entered.</li>
 </ul>

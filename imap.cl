@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.9 2000/04/21 15:03:37 jkf Exp $
+;; $Id: imap.cl,v 1.10 2000/04/21 21:52:15 jkf Exp $
 
 ;; Description:
 ;;
@@ -62,6 +62,7 @@
    #:fetch-letter
    #:fetch-parts
    #:*imap-version-number*
+   #:make-envelope-from-text
    #:mailbox-flags      ; accessor
    #:mailbox-permanent-flags ; acc
    #:mailbox-list
@@ -75,6 +76,8 @@
    #:make-imap-connection
    #:make-pop-connection
    #:noop
+   #:top-lines	; pop only
+   #:unique-id  ; pop only
    
    #:po-condition
    #:po-condition-indentifier
@@ -84,6 +87,7 @@
    #:rename-mailbox
    #:search-mailbox
    #:select-mailbox
+   
    )
   )
 
@@ -91,7 +95,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 3)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 4)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -512,7 +516,17 @@
 
 
 (defun send-pop-command-get-results (pop command &optional extrap)
-  ;; if extrap is true then we're expecting data to follow an +ok
+  ;; send the given command to the pop server
+  ;; if extrap is true and if the response is +ok, then data
+  ;;  will follow the command (up to and excluding the first line consisting 
+  ;;  of just a period)
+  ;; 
+  ;; if the pop server returns an error code we signal a lisp error.
+  ;; otherwise
+  ;; return
+  ;;  extrap is nil -- return the list of tokens on the line after +ok
+  ;;  extrap is true -- return the extra object (a big string)
+  ;;
   (format (post-office-socket pop) "~a~a" command *crlf*)
   (force-output (post-office-socket pop))
   
@@ -527,9 +541,15 @@
 		      :server-string line))
 
     (if* extrap
-       then ; get the rest of the data
-	    
-	    (let ((buf (get-line-buffer (+ (car parsed) 50)))
+       then ;; get the rest of the data
+	    ;; many but not all pop servers return the size of the data
+	    ;; after the +ok, so we use that to initially size the 
+	    ;; retreival buffer.
+	    (let ((buf (get-line-buffer (+ (if* (fixnump (car parsed))
+					      then (car parsed) 
+					      else 2048 ; reasonable size
+						   )
+					   50)))
 		  (pos 0)
 		  ; states
 		  ;  1 - after lf
@@ -539,12 +559,14 @@
 		  (sock (post-office-socket pop)))
 	      (flet ((add-to-buffer (ch)
 		       (if* (>= pos (length buf))
-			  then (po-error :unexpected
-					 :format-control 
-					 "missinfomation from pop"
-					 :server-string line)
-			  else (setf (schar buf pos) ch)
-			       (incf pos))))
+			  then ; grow buffer
+			       (let ((new-buf (get-line-buffer
+					       (* (length buf) 2))))
+				 (init-line-buffer new-buf buf)
+				 (free-line-buffer buf)
+				 (setq buf new-buf)))
+		       (setf (schar buf pos) ch)
+		       (incf pos)))
 		(loop
 		  (let ((ch (read-char sock nil nil)))
 		    (if* (null ch)
@@ -742,6 +764,77 @@
   (let ((res (send-pop-command-get-results pb "stat")))
       (setf (mailbox-message-count pb) (car res)))
   )
+
+
+(defmethod unique-id ((pb pop-mailbox) &optional message)
+  ;; if message is given, return the unique id of that
+  ;; message, 
+  ;; if message is not given then return a list of lists:
+  ;;  (message  unique-id)
+  ;; for all messages not marked as deleted
+  ;;
+  (if* message
+     then (let ((res (send-pop-command-get-results pb
+						   (format nil 
+							   "UIDL ~d" 
+							   message))))
+	    (cadr res))
+     else ; get all of them
+	  (let* ((res (send-pop-command-get-results pb "UIDL" t))
+		 (end (length res))
+		 kind
+		 mnum
+		 mid
+		 (next 0))
+		      
+		
+	    (let ((coll))
+	      (loop
+		(multiple-value-setq (kind mnum next) 
+		  (get-next-token res next end))
+		
+		(if* (eq :eof kind) then (return))
+		
+		(if* (not (eq :number kind))
+		   then ; hmm. bogus
+			(po-error :unexpected
+				  :format-control "uidl returned illegal message number in ~s"
+				  :format-arguments (list res)))
+		
+		; now get message id
+		
+		(multiple-value-setq (kind mid next)
+		    (get-next-token res next end))
+		
+		(if* (eq :number kind)
+		   then ; looked like a number to the tokenizer,
+			; make it a string to be consistent
+			(setq mid (format nil "~d" mid))
+		 elseif (not (eq :string kind))
+		   then ; didn't find the uid
+			(po-error :unexpected
+				  :format-control "uidl returned illegal message id in ~s"
+				  :format-arguments (list res)))
+		
+		(push (list mnum mid) coll))
+	      
+	      (nreverse coll)))))
+
+(defmethod top-lines ((pb pop-mailbox) message lines)
+  ;; return the header and the given number of top lines of the message
+  
+  (let ((res (send-pop-command-get-results pb
+					   (format nil 
+						   "TOP ~d ~d"
+						   message
+						   lines)
+					   t ; extra
+					   )))
+    res))
+			     
+			
+		
+						   
 
 
 (defun check-for-success (mb command count extra comment command-string )
@@ -1163,7 +1256,125 @@
 
 
 
+
+
+(defun make-envelope-from-text (text)
+  ;; given at least the headers part of a message return
+  ;; an envelope structure containing the contents
+  ;; This is useful for parsing the headers of things returned by
+  ;; a pop server
+  ;;
+  (let ((next 0)
+	(end (length text))
+	header
+	value
+	kind
+	headers)
+    (labels ((next-header-line ()
+	       ;; find the next header line return
+	       ;; :eof - no more
+	       ;; :start - beginning of header value, header and
+	       ;;	         value set
+	       ;; :continue - continuation of previous header line
+	     
+		       
+	       (let ((state 1)
+		     beginv  ; charpos beginning value
+		     beginh  ; charpos beginning header
+		     ch
+		     )
+		 (tagbody again
 		   
+		   (return-from next-header-line
+		     
+		     (loop  ; for each character
+		       
+		       (if* (>= next end)
+			  then (return :eof))
+		 
+		       (setq ch (char text next))
+		 
+		       (if* (eq ch #\return) 
+			  thenret  ; ignore return, (handle following linefeed)
+			  else (case state
+				 (1 ; no characters seen
+				  (if* (eq ch #\linefeed)
+				     then (incf next)
+					  (return :eof)
+				   elseif (member ch
+						  '(#\space
+						    #\tab))
+				     then ; continuation
+					  (setq state 2)
+				     else (setq beginh next)
+					  (setq state 3)
+					  ))
+				 (2 ; looking for first non blank in value
+				  (if* (eq ch #\linefeed)
+				     then ; empty continuation line, ignore
+					  (go again)
+				   elseif (not (member ch
+						       (member ch
+							       '(#\space
+								 #\tab))))
+				     then ; begin value part
+					  (setq beginv next)
+					  (setq state 4)))
+				 (3 ; reading the header
+				  (if* (eq ch #\linefeed)
+				     then ; bogus header line, ignore
+					  (go again)
+				   elseif (eq ch #\:)
+				     then (setq header
+					    (subseq text beginh next))
+					  (setq state 2)))
+				 (4 ; looking for the end of the value
+				  (if* (eq ch #\linefeed)
+				     then (setq value
+					    (subseq text beginv 
+						    (if* (eq #\return
+							     (char text
+								   (1- next)))
+						       then (1- next)
+						       else next)))
+					  (incf next)
+					  (return (if* header
+						     then :start
+						     else :continue)))))
+			       (incf next))))))))
+					 
+	       
+    
+      (loop ; for each header line
+	(setq header nil)
+	(if* (eq :eof (setq kind (next-header-line)))
+	   then (return))
+	(case kind
+	  (:start (push (cons header value) headers))
+	  (:continue
+	   (if* headers
+	      then ; append to previous one
+		   (setf (cdr (car headers))
+		     (concatenate 'string (cdr (car headers))
+				  " " 
+				  value))))))
+      
+      (make-envelope
+       :date     (cdr (assoc "date" headers :test #'equalp))
+       :subject  (cdr (assoc "subject" headers :test #'equalp))
+       :from     (cdr (assoc "from" headers :test #'equalp))
+       :sender   (cdr (assoc "sender" headers :test #'equalp))
+       :reply-to (cdr (assoc "reply-to" headers :test #'equalp))
+       :to       (cdr (assoc "to" headers :test #'equalp))
+       :cc       (cdr (assoc "cc" headers :test #'equalp))
+       :bcc      (cdr (assoc "bcc" headers :test #'equalp))
+       :in-reply-to (cdr (assoc "in-reply-to" headers :test #'equalp))
+       :message-id (cdr (assoc "message-id" headers :test #'equalp))
+       ))))
+
+		  
+	      
+				 
 	      
 
 
@@ -1171,8 +1382,8 @@
 
     
 (defmethod get-and-parse-from-imap-server ((mb imap-mailbox))
-  ;; read the next line and parse it.... see parse-imap-response
-  ;; for the return value of this function.
+  ;; read the next line and parse it
+  ;;
   ;;
   (multiple-value-bind (line count)
       (get-line-from-server mb)
@@ -1188,7 +1399,12 @@
 
 (defmethod get-and-parse-from-pop-server ((mb pop-mailbox))
   ;; read the next line from the pop server
-  ;; return the result of parsing it
+  ;;
+  ;; return 3 values:
+  ;;   :ok or :error 
+  ;;   a list of rest of the tokens on the line
+  ;;   the whole line after the +ok or -err
+
   (multiple-value-bind (line count)
       (get-line-from-server mb)
     
@@ -1312,9 +1528,10 @@
 
 
 (defun parse-pop-response (line end)
-  ;; return values:
+  ;; return 3 values:
   ;;   :ok or :error 
-  ;;   a list of rest of the tokens on the line
+  ;;   a list of rest of the tokens on the line, the tokens
+  ;;	 being either strings or integers
   ;;   the whole line after the +ok or -err
   ;;
   (let (res lineres result)
@@ -1359,6 +1576,8 @@
       
       (setf (aref arr #.(char-code #\space)) :space)
       (setf (aref arr #.(char-code #\tab)) :space)
+      (setf (aref arr #.(char-code #\return)) :space)
+      (setf (aref arr #.(char-code #\linefeed)) :space)
       
       (setf (aref arr #.(char-code #\[)) :lbracket)
       (setf (aref arr #.(char-code #\])) :rbracket)
@@ -1663,8 +1882,17 @@
   (mp:without-scheduling
     (push buff *line-buffers*)))
 
+(defun init-line-buffer (new old)
+  ;; copy old into new
+  (declare (optimize (speed 3)))
+  (dotimes (i (length old))
+    (declare (fixnum i))
+    (setf (schar new i) (schar old i))))
 
-;;;;;;;
+
+  
+
+  ;;;;;;;
 
 ; date functions
 
@@ -1687,12 +1915,3 @@
 			  
 	  
 		  
-      
-  
-  
-
-
-
-
-
-
