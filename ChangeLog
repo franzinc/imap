@@ -1,3 +1,8 @@
+2002-06-03  Kevin Layer  <layer@crikey>
+
+	* smtp.cl: from jkf: fix dns issue I ran into on meatlocker with
+	the lfs
+
 *******************************************************************************
 merge from trunk to acl6 branch
 command: ../../join.sh trunk trunk_to_acl6_merge2 trunk_to_acl6_merge3 imap

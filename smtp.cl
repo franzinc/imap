@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.2.14.6 2002/03/07 16:19:37 layer Exp $
+;; $Id: smtp.cl,v 1.2.14.6.2.1 2002/06/03 15:56:26 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -470,9 +470,18 @@
 	    (if* (or (eq socket:*dns-mode* :acldns)
 		     (member :acldns socket:*dns-mode* :test #'eq))
 	       then (let ((res (socket:dns-query name :type :mx)))
-		      (if* (and res (consp res))
+		      (if* (and (consp res) (cadr res))
 			 then (cadr res) ; the ip address
-			 else (socket:dns-query name :type :a)))
+			 else (dolist (suffix socket::*domain-search-list*
+					(socket:dns-lookup-hostname name))
+				(declare (special socket:*domain-search-list*))
+				(let ((name 
+				       (concatenate 'string name "." suffix)))
+				  (setq res (socket:dns-query name :type :mx))
+				  (if* (and res (cadr res))
+				     then (return (cadr res)))))))
+			      
+			      
 	       else ; just do a hostname lookup
 		    (ignore-errors (socket:lookup-hostname name))))))
 		    
