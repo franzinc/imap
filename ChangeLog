@@ -1,3 +1,8 @@
+2001-12-10  John Foderaro  <jkf@tiger.franz.com>
+
+	* smtp: in verify command check both name and fqdn
+	  since some sites don't do name
+
 2001-10-10  Kevin Layer  <layer@crikey>
 
 	* smtp.cl: fix typo in error message
