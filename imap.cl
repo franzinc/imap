@@ -19,10 +19,14 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.3 1999/09/27 20:24:24 jkf Exp $
+;; $Id: imap.cl,v 1.4 1999/09/27 20:26:15 jkf Exp $
 
 ;; Description:
 ;;
+;;
+;;- This code in this file obeys the Lisp Coding Standard found in
+;;- http://www.franz.com/~jkf/coding_standards.html
+;;-
 
 
 (defpackage :post-office
