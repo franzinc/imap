@@ -1,15 +1,18 @@
-2000-10-23  Kevin Layer  <layer@ultra>
+*******************************************************************************
+merge from trunk to acl6 branch (for 6.1.beta)
+command: ../../join.sh trunk acl6 trunk_to_acl6_merge1 aserve
+*******************************************************************************
+2001-05-11  John Foderaro  <jkf@tiger.franz.com>
 
-	* smtp.cl: send-letter: add cc and bcc keywork arguments
+	* smtp.cl: add test-email-address function to check to see
+	    if an email address can be determined to be bogus without
+	    sending a letter.
 
-2000-10-17  Kevin Layer  <layer@ultra>
-
-	* smtp.cl: send-letter: add `headers' keyword argument
-
-2000-09-05  Kevin Layer  <layer@ultra>
-
-	* smtp.cl: add provide
-
+2001-05-02  John Foderaro  <jkf@tiger.franz.com>
+1.8
+	* imap will signal a :response-too-large error if it encounter
+	 a letter it can't store in a lisp array.
+	
 2000-06-08    <jkf@CROW>
 1.7
 	* imap.cl: add parse-mail-header function to return mail headers
