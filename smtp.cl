@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.2.14.6.2.1 2002/06/03 15:56:26 layer Exp $
+;; $Id: smtp.cl,v 1.2.14.6.2.2 2002/06/17 19:43:28 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.

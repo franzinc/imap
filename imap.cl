@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.16.6.4 2002/03/07 16:19:37 layer Exp $
+;; $Id: imap.cl,v 1.16.6.4.2.1 2002/06/17 19:43:28 layer Exp $
 
 ;; Description:
 ;;
