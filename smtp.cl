@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.2.14.4 2001/06/11 20:24:27 layer Exp $
+;; $Id: smtp.cl,v 1.2.14.4.2.1 2001/08/10 15:31:44 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -209,7 +209,8 @@
 	  
 	  
 	  
-	  (let ((at-bol t))
+	  (let ((at-bol t) 
+		(prev-ch nil))
 	    (dolist (message messages)
 	      (dotimes (i (length message))
 		(let ((ch (aref message i)))
@@ -218,9 +219,11 @@
 			  (write-char #\. sock))
 		  (if* (eq ch #\newline)
 		     then (setq at-bol t)
-			  (write-char #\return sock)
+			  (if* (not (eq prev-ch #\return))
+			     then (write-char #\return sock))
 		     else (setq at-bol nil))
-		  (write-char ch sock)))))
+		  (write-char ch sock)
+		  (setq prev-ch ch)))))
 	
 	  (write-char #\return sock) (write-char #\linefeed sock)
 	  (write-char #\. sock)
