@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.8 1999/12/03 16:14:50 jkf Exp $
+;; $Id: imap.cl,v 1.9 2000/04/21 15:03:37 jkf Exp $
 
 ;; Description:
 ;;
@@ -138,7 +138,7 @@
     :accessor mailbox-separator
     :initform "")
    
-   ;;; these slots hold information about the currently select mailbox:
+   ;;; these slots hold information about the currently selected mailbox:
    
     (message-count  ; how many in the mailbox
     :accessor mailbox-message-count
