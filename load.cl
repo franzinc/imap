@@ -1,5 +1,5 @@
 (load (compile-file-if-needed "imap"))
-(load (compile-file-if-needed "../smtp/smtp"))
+(load (compile-file-if-needed "smtp"))
 
 (defun test ()
   (setq *xx* (po::make-imap-connection "tiger.franz.com"
