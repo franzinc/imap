@@ -1,3 +1,8 @@
+2003-05-07    <jkf@main.verada.com>
+imap v1.9
+>>>	* imap.cl: add reset-mailbox for pop maiboxes to send the RSET
+	        command
+
 2003-01-10  Kevin Layer  <layer@crikey>
 
 	* smtp.cl: test-email-address: do VRFY on address, too.

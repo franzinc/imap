@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.20 2002/03/07 16:57:35 jkf Exp $
+;; $Id: imap.cl,v 1.21 2003/05/07 17:02:43 jkf Exp $
 
 ;; Description:
 ;;
@@ -85,6 +85,7 @@
    #:po-error
    
    #:rename-mailbox
+   #:reset-mailbox
    #:search-mailbox
    #:select-mailbox
    
@@ -95,7 +96,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 8)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 9)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -842,7 +843,12 @@
     res))
 			     
 			
-		
+
+
+(defmethod reset-mailbox ((pb pop-mailbox))
+  ;; undo's deletes
+  (send-pop-command-get-results pb "RSET")
+  )
 						   
 
 
