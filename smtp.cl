@@ -55,21 +55,34 @@
 
 
 (defun send-letter (server from to message
-		    &key subject
-			 reply-to
-			 headers)
-  (let ((header (make-string-output-stream)))
+		    &key cc bcc subject reply-to headers)
+  (let ((header (make-string-output-stream))
+	(tos (if* (stringp to) 
+		then (list to) 
+	      elseif (consp to)
+		then to
+		else (error "to should be a string or list, not ~s" to)))
+	(ccs
+	 (if* (null cc)
+	    then nil
+	  elseif (stringp cc) 
+	    then (list cc) 
+	  elseif (consp cc)
+	    then cc
+	    else (error "cc should be a string or list, not ~s" cc)))
+	(bccs (if* (null bcc)
+		 then nil
+	       elseif (stringp bcc) 
+		 then (list bcc) 
+	       elseif (consp bcc)
+		 then bcc
+		 else (error "bcc should be a string or list, not ~s" bcc))))
     (format header "From: ~a~c~cTo: "
 	    from
 	    #\return
 	    #\linefeed)
-    (let ((tos (if* (stringp to) 
-			then (list to) 
-		      elseif (consp to)
-			then to
-			else (error "to should be a string or list, not ~s"
-				    to))))
-      (format header "~{ ~a~^,~}~c~c" tos #\return #\linefeed))
+    (format header "~{ ~a~^,~}~c~c" tos #\return #\linefeed)
+    (when ccs (format header "Cc: ~{ ~a~^,~}~c~c" ccs #\return #\linefeed))
     
     (if* subject
        then (format header "Subject: ~a~c~c" subject #\return #\linefeed))
@@ -87,11 +100,9 @@
     
     (format header "~c~c" #\return #\linefeed)
     
-    (send-smtp server from to (get-output-stream-string header) message)
-  
-  
-  
-    ))
+    (send-smtp server from (append tos ccs bccs)
+	       (get-output-stream-string header)
+	       message)))
     
     
 	  

@@ -1,3 +1,7 @@
+2000-10-23  Kevin Layer  <layer@ultra>
+
+	* smtp.cl: send-letter: add cc and bcc keywork arguments
+
 2000-10-17  Kevin Layer  <layer@ultra>
 
 	* smtp.cl: send-letter: add `headers' keyword argument
