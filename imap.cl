@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.23 2003/09/18 18:12:29 jkf Exp $
+;; $Id: imap.cl,v 1.24 2003/10/28 21:52:08 jkf Exp $
 
 ;; Description:
 ;;
@@ -59,6 +59,9 @@
    #:expunge-mailbox
    #:fetch-field
    #:fetch-letter
+   #:fetch-letter-sequence
+   #:end-of-letter-p
+   #:with-fetch-letter-sequence
    #:fetch-parts
    #:*imap-version-number*
    #:make-envelope-from-text
@@ -74,6 +77,8 @@
    #:mailbox-uidvalidity
    #:make-imap-connection
    #:make-pop-connection
+   #:with-imap-connection
+   #:with-pop-connection
    #:noop
    #:parse-mail-header
    #:top-lines	; pop only
@@ -96,7 +101,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 11)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 12)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -181,7 +186,11 @@
 (defclass pop-mailbox (post-office)
   ((message-count  ; how many in the mailbox
     :accessor mailbox-message-count
-    :initform 0)))
+    :initform 0)
+   (fetch-letter-state 
+    :accessor state
+    :initform :invalid)))
+    
 
 
 
@@ -517,8 +526,77 @@
   )
 
 
+(defmethod begin-extended-results-sequence ((mb pop-mailbox))
+  (setf (state mb) 1))
+
+(defmethod get-extended-results-sequence ((mb pop-mailbox) buffer &key (start 0) (end (length buffer)))
+  (declare (optimize (speed 3) (safety 1)))
+  (let ((inpos start)
+	(outpos start)
+	(sock (post-office-socket mb))
+	ch
+	stop)
+    (macrolet ((add-to-buffer () 
+		 `(progn
+		    (setf (schar buffer outpos) ch)
+		    (incf outpos))))
+      (while (and (< inpos end) (/= (state mb) 4))
+	(setf stop (read-sequence buffer sock :start inpos :end end :partial-fill t))
+	(while (< inpos stop)
+	  (setf ch (schar buffer inpos))
+	  (if* (eq ch #\return)
+	     thenret			; ignore crs
+	     else (ecase (state mb)
+		    (1 (if* (eq ch #\.)	; at beginning of line
+			  then (setf (state mb) 2)
+			elseif (eq ch #\linefeed)
+			  then 
+			       (add-to-buffer) ; state stays at 1
+			  else 
+			       (setf (state mb) 3)
+			       (add-to-buffer)))
+		    (2			; seen first dot
+		     (if* (eq ch #\linefeed)
+			then		; end of results
+			     (setf (state mb) 4)
+			     (return) 
+			else 
+			     (setf (state mb) 3)
+			     (add-to-buffer))) ; normal reading
+		    (3			; middle of line
+		     (if* (eq ch #\linefeed)
+			then (setf (state mb) 1))
+		     (add-to-buffer))))
+	  (incf inpos))
+	(setf inpos outpos))
+      outpos)))
+
+(defmacro end-of-extended-results-p (mb)
+  `(= (state ,mb) 4))
+
+(defmethod end-extended-results-sequence ((mb pop-mailbox))
+  (declare (optimize (speed 3) (safety 1)))
+  (let ((buffer (make-string 4096)))
+    (until (end-of-extended-results-p mb)
+      (get-extended-results-sequence mb buffer)))
+  (setf (state mb) :invalid-state)
+  t)
+
+(defmacro with-extended-results-sequence ((mailbox) &body body)
+  (let ((mb (gensym)))
+    `(let ((,mb ,mailbox))
+       (begin-extended-results-sequence ,mb)
+       (unwind-protect
+	   (progn
+	     ,@body)
+	 ;; cleanup
+	 (end-extended-results-sequence ,mb)))))
+
+
+  
 
 (defun send-pop-command-get-results (pop command &optional extrap)
+  (declare (optimize (speed 3) (safety 1)))
   ;; send the given command to the pop server
   ;; if extrap is true and if the response is +ok, then data
   ;;  will follow the command (up to and excluding the first line consisting 
@@ -548,67 +626,36 @@
 	    ;; many but not all pop servers return the size of the data
 	    ;; after the +ok, so we use that to initially size the 
 	    ;; retreival buffer.
-	    (let ((buf (get-line-buffer (+ (if* (fixnump (car parsed))
-					      then (car parsed) 
-					      else 2048 ; reasonable size
-						   )
-					   50)))
-		  (pos 0)
-		  ; states
-		  ;  1 - after lf
-		  ;  2 - seen dot at beginning of line
-		  ;  3 - seen regular char on line
-		  (state 1)
-		  (sock (post-office-socket pop)))
-	      (flet ((add-to-buffer (ch)
-		       (if* (>= pos (length buf))
-			  then ; grow buffer
-			       (if* (>= (length buf) 
-					(1- array-total-size-limit))
-				  then ; can't grow it any further
-				       (po-error
-					:response-too-large
-					:format-control
-					"response from mail server is too large to hold in a lisp array"))
-			       (let ((new-buf (get-line-buffer
-					       (* (length buf) 2))))
-				 (init-line-buffer new-buf buf)
-				 (free-line-buffer buf)
-				 (setq buf new-buf)))
-		       (setf (schar buf pos) ch)
-		       (incf pos)))
-		(loop
-		  (let ((ch (read-char sock nil nil)))
-		    (if* (null ch)
-		       then (po-error :unexpected
-				      :format-control "premature end of file from server"))
-		    (if* (eq ch #\return)
-		       thenret ; ignore crs
-		       else (case state
-			      (1 (if* (eq ch #\.)
-				    then (setq state 2)
-				  elseif (eq ch #\linefeed)
-				    then (add-to-buffer ch)
-					 ; state stays at 1
-				    else (add-to-buffer ch)
-					 (setq state 3)))
-			      (2 ; seen first dot
-			       (if* (eq ch #\linefeed)
-				  then ; end of message
-				       (return)
-				  else (add-to-buffer ch)
-				       (setq state 3)))
-			      (3 ; normal reading
-			       (add-to-buffer ch)
-			       (if* (eq ch #\linefeed)
-				  then (setq state 1))))))))
+	    (let* ((buf (get-line-buffer (+ (if* (fixnump (car parsed))
+					       then (car parsed) 
+					       else 2048 ; reasonable size
+						    )
+					    50)))
+		   (buflen (length buf))
+		   (pos 0))
+	      (with-extended-results-sequence (pop)
+		(until (end-of-extended-results-p pop)
+		  (if* (>= pos buflen)
+		     then    ;; grow buffer
+			  (if* (>= buflen (1- array-total-size-limit))
+			     then	; can't grow it any further
+				  (po-error
+				   :response-too-large
+				   :format-control
+				   "response from mail server is too large to hold in a lisp array"))
+			  (let ((new-buf (get-line-buffer (* buflen 2))))
+			    (init-line-buffer new-buf buf)
+			    (free-line-buffer buf)
+			    (setq buf new-buf)
+			    (setq buflen (length buf))))
+		  (setf pos (get-extended-results-sequence pop buf :start pos :end buflen))))
 	      (prog1 (subseq buf 0 pos)
 		(free-line-buffer buf)))
        else parsed)))
   
 
-  
-  
+
+
 (defun convert-flags-plist (plist)
   ;; scan the plist looking for "flags" indicators and 
   ;; turn value into a list of symbols rather than strings
@@ -650,6 +697,31 @@
 				t ; extra stuff
 				))
 
+(defmethod begin-fetch-letter-sequence ((mb pop-mailbox) number &key uid)
+  (declare (ignore uid))
+  (send-pop-command-get-results mb (format nil "RETR ~d" number))
+  (begin-extended-results-sequence mb))
+
+
+(defmethod fetch-letter-sequence ((mb pop-mailbox) buffer &key (start 0) (end (length buffer)))
+  (get-extended-results-sequence mb buffer :start start :end end))
+
+(defmethod end-fetch-letter-sequence ((mb pop-mailbox))
+  (end-extended-results-sequence mb))
+
+(defmethod end-of-letter-p ((mb pop-mailbox))
+  (end-of-extended-results-p mb))
+
+(defmacro with-fetch-letter-sequence ((mailbox &rest args) &body body)
+  (let ((mb (gensym)))
+    `(let ((,mb ,mailbox))
+       (begin-fetch-letter-sequence ,mb ,@args)
+       (unwind-protect
+	   (progn
+	     ,@body)
+	 ;; cleanup
+	 (end-fetch-letter-sequence ,mb)))))
+	    
 (defmethod fetch-parts ((mb imap-mailbox) number parts &key uid)
   (let (res)
     (send-command-get-results 
@@ -1891,7 +1963,7 @@
 (defun get-block-of-data-from-server  (mb count &key save-returns)
   ;; read count bytes from the server returning it in a line buffer object
   ;; return as a second value the number of characters saved 
-  ;; (we drop #\return's so that lines are sepisarated by a #\newline
+  ;; (we drop #\return's so that lines are separated by a #\newline
   ;; like lisp likes).
   ;;
   (let ((buff (get-line-buffer count))
@@ -1936,7 +2008,6 @@
     (declare (fixnum i))
     (setf (schar new i) (schar old i))))
 
-
   
 
   ;;;;;;;
@@ -1960,5 +2031,23 @@
 	    year)))
   
 			  
-	  
-		  
+
+
+;; utility
+
+(defmacro with-imap-connection ((mb &rest options) &body body)
+  `(let ((,mb (make-imap-connection ,@options)))
+     (unwind-protect
+	 (progn
+	   ,@body)
+       (close-connection ,mb))))
+
+
+(defmacro with-pop-connection ((mb &rest options) &body body)
+  `(let ((,mb (make-pop-connection ,@options)))
+     (unwind-protect
+	 (progn
+	   ,@body)
+       (close-connection ,mb))))
+
+
