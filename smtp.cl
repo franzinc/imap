@@ -1,7 +1,38 @@
-;; mail sending package
+;; -*- mode: common-lisp; package: net.aserve -*-
 ;;
-;; smtp -  rfc821
+;; smtp.cl
 ;;
+;; copyright (c) 1986-2000 Franz Inc, Berkeley, CA 
+;;
+;; This code is free software; you can redistribute it and/or
+;; modify it under the terms of the version 2.1 of
+;; the GNU Lesser General Public License as published by 
+;; the Free Software Foundation, as clarified by the AllegroServe
+;; prequel found in license-allegroserve.txt.
+;;
+;; This code is distributed in the hope that it will be useful,
+;; but without any warranty; without even the implied warranty of
+;; merchantability or fitness for a particular purpose.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; Version 2.1 of the GNU Lesser General Public License is in the file 
+;; license-lgpl.txt that was distributed with this file.
+;; If it is not present, you can access it from
+;; http://www.gnu.org/copyleft/lesser.txt (until superseded by a newer
+;; version) or write to the Free Software Foundation, Inc., 59 Temple Place, 
+;; Suite 330, Boston, MA  02111-1307  USA
+;;
+;;
+;; $Id: smtp.cl,v 1.3 2001/05/04 16:01:45 jkf Exp $
+
+;; Description:
+;;   send mail to an smtp server.  See rfc821 for the spec.
+
+;;- This code in this file obeys the Lisp Coding Standard found in
+;;- http://www.franz.com/~jkf/coding_standards.html
+;;-
+
+
 (defpackage :net.post-office
   (:use #:lisp #:excl)
   (:export 
@@ -10,23 +41,34 @@
 
 (in-package :net.post-office)
 
+
 ;; the exported functions:
 
-;; (send-letter "mail-server" "from" "to" "message" &key subject reply-to)
+;; (send-letter "mail-server" "from" "to" "message" 
+;;		&key cc bcc subject reply-to headers)
+;;								
 ;;  
 ;;    sends a message to the mail server (which may be a relay server
 ;;    or the final destination).  "from" is the address to be given
 ;;    as the sender.  "to" can be a string or a list of strings naming
 ;;    recipients.   
 ;;    "message" is the message to be sent
-;;    This builds a header and inserts the optional subject and reply-to
-;;    lines.
+;;    cc and bcc can be either be a string or a  list of strings
+;;	naming recipients.  All cc's and bcc's are sent the message
+;;	but the bcc's aren't included in the header created.
+;;    reply-to's value is a string and in cases a Reply-To header
+;;	 to be created.
+;;    headers is a string or list of stings. These are raw header lines
+;;	added to the header build to send out.
+;;
+;;    This builds a header and inserts the optional cc, bcc, 
+;;    subject and reply-to  lines.
 ;;
 ;; (send-smtp "mail-server" "from" "to" &rest messages)
 ;;    this is like send-letter except that it doesn't build a header.
 ;;    the messages should contain a header (and if not then sendmail
 ;;    notices this and builds one -- other MTAs may not be that smart).
-;;    The messages ia  list of string to be concatenated together
+;;    The messages ia  list of strings to be concatenated together
 ;;    and sent as one message
 ;;
 ;;
@@ -35,18 +77,19 @@
 
 
 
-
-
-
-
-
-
-(defmacro response-case ((ftp-stream) &rest case-clauses)
+(defmacro response-case ((smtp-stream &optional smtp-response) &rest case-clauses)
+  ;; get a response from the smtp server and dispatch in a 'case' like
+  ;; fashion to a clause based on the first digit of the return
+  ;; code of the response.
+  ;; smtp-response, if given, will be bound to string that is
+  ;;  the actual response
+  ;; 
   (let ((response-class (gensym)))
-    `(multiple-value-bind (,response-class ftp-response)
-	 (progn (force-output ,ftp-stream)
-		(wait-for-response ,ftp-stream))
-       (declare (ignorable ftp-response))
+    `(multiple-value-bind (,response-class ,@(if* smtp-response
+						then (list smtp-response)))
+	 (progn (force-output ,smtp-stream)
+		(wait-for-response ,smtp-stream))
+       ;;(declare (ignorable smtp-response))
        (case ,response-class
 	 ,@case-clauses))))
 
@@ -55,20 +98,38 @@
 
 
 (defun send-letter (server from to message
-		    &key subject
-			 reply-to)
-  (let ((header (make-string-output-stream)))
+		    &key cc bcc subject reply-to headers)
+  ;;
+  ;; see documentation at the head of this file
+  ;;
+  (let ((header (make-string-output-stream))
+	(tos (if* (stringp to) 
+		then (list to) 
+	      elseif (consp to)
+		then to
+		else (error "to should be a string or list, not ~s" to)))
+	(ccs
+	 (if* (null cc)
+	    then nil
+	  elseif (stringp cc) 
+	    then (list cc) 
+	  elseif (consp cc)
+	    then cc
+	    else (error "cc should be a string or list, not ~s" cc)))
+	(bccs (if* (null bcc)
+		 then nil
+	       elseif (stringp bcc) 
+		 then (list bcc) 
+	       elseif (consp bcc)
+		 then bcc
+		 else (error "bcc should be a string or list, not ~s" bcc))))
     (format header "From: ~a~c~cTo: "
 	    from
 	    #\return
 	    #\linefeed)
-    (let ((tos (if* (stringp to) 
-			then (list to) 
-		      elseif (consp to)
-			then to
-			else (error "to should be a string or list, not ~s"
-				    to))))
-      (format header "~{ ~a~^,~}~c~c" tos #\return #\linefeed))
+    (format header "~{ ~a~^,~}~c~c" tos #\return #\linefeed)
+    (if* ccs 
+       then (format header "Cc: ~{ ~a~^,~}~c~c" ccs #\return #\linefeed))
     
     (if* subject
        then (format header "Subject: ~a~c~c" subject #\return #\linefeed))
@@ -76,14 +137,20 @@
     (if* reply-to
        then (format header "Reply-To: ~a~c~c" reply-to #\return #\linefeed))
     
+    (if* headers
+       then (if* (stringp headers)
+	       then (setq headers (list headers))
+	     elseif (consp headers)
+	       thenret
+	       else (error "Unknown headers format: ~s." headers))
+	    (dolist (h headers) 
+	      (format header "~a~c~c" h #\return #\linefeed)))
     
     (format header "~c~c" #\return #\linefeed)
     
-    (send-smtp server from to (get-output-stream-string header) message)
-  
-  
-  
-    ))
+    (send-smtp server from (append tos ccs bccs)
+	       (get-output-stream-string header)
+	       message)))
     
     
 	  
@@ -102,29 +169,30 @@
 				  )))
     (unwind-protect
 	(progn
-	  (response-case (sock)
-			 (2 ;; to the initial connect
-			  nil)
-			 (t (error "initial connect failed")))
+	  (response-case (sock msg)
+	    (2 ;; to the initial connect
+	     nil)
+	    (t (error "initial connect failed: ~s" msg)))
 	  
 	  ;; now that we're connected we can compute our hostname
 	  (let ((hostname (socket:ipaddr-to-hostname
 			   (socket:local-host sock))))
 	    (if* (null hostname)
-	       then (format nil "[~a]" (socket:ipaddr-to-dotted
-					(socket:local-host sock))))
+	       then (setq hostname
+		      (format nil "[~a]" (socket:ipaddr-to-dotted
+					  (socket:local-host sock)))))
 	    (smtp-command sock "HELO ~a" hostname)
-	    (response-case (sock)
-			   (2 ;; ok
-			    nil)
-			   (t (error "hello greeting failed"))))
+	    (response-case (sock msg)
+	      (2 ;; ok
+	       nil)
+	      (t (error "hello greeting failed: ~s" msg))))
 	    
 	  (smtp-command sock "MAIL from:<~a>" from)
-	  (response-case (sock)
-			 (2 ;; cool
-			  nil
-			  )
-			 (t (error "Mail from command failed")))
+	  (response-case (sock msg)
+	    (2 ;; cool
+	     nil
+	     )
+	    (t (error "Mail from command failed: ~s" msg)))
 
 	  (let ((tos (if* (stringp to) 
 			then (list to) 
@@ -134,18 +202,18 @@
 				    to))))
 	    (dolist (to tos)
 	      (smtp-command sock "RCPT to:<~a>" to)
-	      (response-case (sock)
-			     (2 ;; cool
-			      nil
-			      )
-			     (t (error "rcpt to command failed")))))
+	      (response-case (sock msg)
+		(2 ;; cool
+		 nil
+		 )
+		(t (error "rcpt to command failed: ~s" msg)))))
 	
 	  (smtp-command sock "DATA")
-	  (response-case (sock)
-			 (3 ;; cool
-			  nil)
-			 (t (error "Data command failed")))
-	  ;(format t "sending message~%") (force-output t)	
+	  (response-case (sock msg)
+	    (3 ;; cool
+	     nil)
+	    (t (error "Data command failed: ~s" msg)))
+	  
 	  
 	  
 	  (let ((at-bol t))
@@ -165,19 +233,19 @@
 	  (write-char #\. sock)
 	  (write-char #\return sock) (write-char #\linefeed sock)
 	
-	  (response-case (sock)
-			 (2 nil ; (format t "Message sent to ~a~%" to)
-			    )
+	  (response-case (sock msg)
+	    (2 nil ; (format t "Message sent to ~a~%" to)
+	       )
 			 
-			 (t (error "message not sent")))
+	    (t (error "message not sent: ~s" msg)))
 
 	  (force-output t)
 	  
 	  (smtp-command sock "QUIT")
-	  (response-case (sock)
-			 (2 ;; cool
-			  nil)
-			 (t (error "quit failed"))))
+	  (response-case (sock msg)
+	    (2 ;; cool
+	     nil)
+	    (t (error "quit failed: ~s" msg))))
       (close sock))))
 
 
@@ -189,7 +257,7 @@
 	
       
 (defun wait-for-response (stream)
-  ;; read the response of the ftp server.
+  ;; read the response of the smtp server.
   ;; collect it all in a string.
   ;; Return two values:
   ;; 	response class
@@ -287,3 +355,5 @@
 	 then (vector-push-extend ch res))
 
       (setq last-ch ch))))
+
+(provide :smtp)

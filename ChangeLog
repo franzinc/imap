@@ -1,3 +1,8 @@
+2001-05-02  John Foderaro  <jkf@tiger.franz.com>
+1.8
+	* imap will signal a :response-too-large error if it encounter
+	 a letter it can't store in a lisp array.
+	
 2000-06-08    <jkf@CROW>
 1.7
 	* imap.cl: add parse-mail-header function to return mail headers

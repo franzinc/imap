@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.16 2000/06/08 14:41:00 jkf Exp $
+;; $Id: imap.cl,v 1.17 2001/05/04 16:01:45 jkf Exp $
 
 ;; Description:
 ;;
@@ -95,7 +95,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 7)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 8)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -262,7 +262,9 @@
 ;
 ;  :timeout  error
 ;	server failed to respond within the timeout period
-
+;
+;  :response-too-large error
+;	contents of a response is too large to store in a Lisp array.
 
 
 ;; conditions
@@ -560,6 +562,13 @@
 	      (flet ((add-to-buffer (ch)
 		       (if* (>= pos (length buf))
 			  then ; grow buffer
+			       (if* (>= (length buf) 
+					(1- array-total-size-limit))
+				  then ; can't grow it any further
+				       (po-error
+					:response-too-large
+					:format-control
+					"response from mail server is too large to hold in a lisp array"))
 			       (let ((new-buf (get-line-buffer
 					       (* (length buf) 2))))
 				 (init-line-buffer new-buf buf)
@@ -1885,6 +1894,7 @@
 
 (defun get-line-buffer (size)
   ;; get a buffer of at least size bytes
+  (setq size (min size (1- array-total-size-limit)))
   (mp::without-scheduling
     (dolist (buff *line-buffers* (make-string size))
 	(if* (>= (length buff) size)
