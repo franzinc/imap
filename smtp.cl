@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.2.14.4.2.1 2001/08/10 15:31:44 layer Exp $
+;; $Id: smtp.cl,v 1.2.14.4.2.2 2001/10/10 08:03:31 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -253,7 +253,7 @@
 	(ok))
     
     (if* (null ipaddr)
-       then (error "Can't determine ip addres for mail server ~s" server))
+       then (error "Can't determine ip address for mail server ~s" server))
     
     (setq sock (socket:make-socket :remote-host ipaddr
 				   :remote-port 25  ; smtp
