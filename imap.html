@@ -66,8 +66,10 @@ should be considered the primary source.</p>
 
 <h1 align="left">Package</h1>
 
-<p align="left">The functions in this interface are defined in the <strong>post-office</strong>
-package which has a nickname <strong>po</strong>.</p>
+<p align="left">The functions in this interface are defined in the <strong>net.post-office</strong>
+package.&nbsp;&nbsp; The previous version of this module gave this package the <strong>po</strong>
+nickname.&nbsp; We've removed that nickname to reduce the possibility of clashing with
+user-defined packages.&nbsp; You are free to add that nickname back if you so desire.</p>
 
 <p align="left">&nbsp;</p>
 
@@ -493,8 +495,8 @@ next message.</p>
 specify the parts of the messages in which you're interested.&nbsp;&nbsp; There are a wide
 variety of specifiers, some redundant and overlapping, described in the imap specification
 in rfe2060.&nbsp; We'll describe the most common ones here.&nbsp;&nbsp; The specification
-is always a string but it may be specified more than one thing by the use of parentheses in
-the string, e.g. &quot;(flags envelope)&quot;.&nbsp;&nbsp; </p>
+is always a string but it may be specified more than one thing by the use of parentheses
+in the string, e.g. &quot;(flags envelope)&quot;.&nbsp;&nbsp; </p>
 
 <p align="left">The most common specifiers are:</p>
 
@@ -653,9 +655,12 @@ these forms:</p>
 <p align="left"><strong>Connect to the imap server on the machine holding the email:</strong></p>
 <div align="left">
 
-<pre>user(2): (setq mb (po:make-imap-connection &quot;mailmachine.franz.com&quot; 
+<pre>user(2): (setq mb (make-imap-connection &quot;mailmachine.franz.com&quot; 
+
                             :user &quot;myacct&quot; 
+
                             :password &quot;mypasswd&quot;))
+
 #&lt;mailbox::imap-mailbox @ #x2064ca4a&gt;</pre>
 </div>
 
@@ -665,7 +670,9 @@ these forms:</p>
 <div align="left">
 
 <pre>
-user(3): (po:select-mailbox mb &quot;inbox&quot;)
+
+user(3): (select-mailbox mb &quot;inbox&quot;)
+
 t</pre>
 </div>
 
@@ -675,27 +682,41 @@ t</pre>
 <div align="left">
 
 <pre>
-user(4): (po:mailbox-message-count mb)
+
+user(4): (mailbox-message-count mb)
+
 7</pre>
 </div>
 
 <p align="left"><strong>There are seven messages at the moment.&nbsp;&nbsp; Fetch the
-whole 4th message.&nbsp; We could call (po:fetch-letter mb 4) here instead and then not
+whole 4th message.&nbsp; We could call (fetch-letter mb 4) here instead and then not
 have to call fetch-field later.</strong></p>
 <div align="left">
 
 <pre>
-user(5): (setq body (po:fetch-parts mb 4 &quot;body[]&quot;))
+
+user(5): (setq body (fetch-parts mb 4 &quot;body[]&quot;))
+
 ((4
+
 (&quot;BODY[]&quot; &quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
+
 Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
+
     by tiger.franz.com (8.8.7/8.8.7) with SMTP id LAA20261
+
     for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 11:36:26 -0700
+
 Date: Mon, 13 Sep 1999 11:36:26 -0700
+
 From: jkf mail tester &lt;jkfmail@tiger.franz.com&gt;
+
 Message-Id: &lt;199909131836.LAA20261@tiger.franz.com&gt;
 
+
+
 message number 5
+
 &quot;)))</pre>
 </div>
 
@@ -705,16 +726,27 @@ information we want we use fetch-field:</strong></p>
 <div align="left">
 
 <pre>
-user(6): (po:fetch-field 4 &quot;body[]&quot; body)
+
+user(6): (fetch-field 4 &quot;body[]&quot; body)
+
 &quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
+
 Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
+
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with SMTP id LAA20261
+
 &nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 11:36:26 -0700
+
 Date: Mon, 13 Sep 1999 11:36:26 -0700
+
 From: jkf mail tester &lt;jkfmail@tiger.franz.com&gt;
+
 Message-Id: &lt;199909131836.LAA20261@tiger.franz.com&gt;
 
+
+
 message number 5
+
 &quot;</pre>
 </div>
 
@@ -724,24 +756,43 @@ that message.</strong></p>
 <div align="left">
 
 <pre>
-user(7): (po:search-mailbox mb '(:text &quot;blitzfig&quot;))
+
+user(7): (search-mailbox mb '(:text &quot;blitzfig&quot;))
+
 (7)
-user(8): (po:fetch-field 7 &quot;body[]&quot; (po:fetch-letter mb 7 &quot;body[]&quot;))
+
+user(8): (fetch-field 7 &quot;body[]&quot; (fetch-letter mb 7 &quot;body[]&quot;))
+
 &quot;Return-Path: &lt;jkf@verada.com&gt;
+
 Received: from main.verada.com (main.verada.com [208.164.216.3])
+
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
+
 &nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:37:24 -0700
+
 Received: from main.verada.com (IDENT:jkf@localhost [127.0.0.1])
+
 &nbsp;&nbsp;&nbsp; by main.verada.com (8.9.3/8.9.3) with ESMTP id NAA06121
+
 &nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:36:54 -0700
+
 Message-Id: &lt;199909132036.NAA06121@main.verada.com&gt;
+
 To: jkfmail@tiger.franz.com
+
 Subject: s test
+
 Date: Mon, 13 Sep 1999 13:36:54 -0700
+
 From: jkf &lt;jkf@verada.com&gt;
 
+
+
 secret word: blitzfig
+
 ok?
+
 &quot;</pre>
 </div>
 
@@ -752,24 +803,43 @@ above search example using uids:</strong></p>
 <div align="left">
 
 <pre>
-user(9): (po:search-mailbox mb '(:text &quot;blitzfig&quot;) :uid t)
+
+user(9): (search-mailbox mb '(:text &quot;blitzfig&quot;) :uid t)
+
 (68)
-user(10): (po:fetch-field 68 &quot;body[]&quot; (po:fetch-letter mb 68 &quot;body[]&quot; :uid t) :uid t)
+
+user(10): (fetch-field 68 &quot;body[]&quot; (fetch-letter mb 68 &quot;body[]&quot; :uid t) :uid t)
+
 &quot;Return-Path: &lt;jkf@verada.com&gt;
+
 Received: from main.verada.com (main.verada.com [208.164.216.3])
+
 &nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
+
 &nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:37:24 -0700
+
 Received: from main.verada.com (IDENT:jkf@localhost [127.0.0.1])
+
 &nbsp;&nbsp;&nbsp; by main.verada.com (8.9.3/8.9.3) with ESMTP id NAA06121
+
 &nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:36:54 -0700
+
 Message-Id: &lt;199909132036.NAA06121@main.verada.com&gt;
+
 To: jkfmail@tiger.franz.com
+
 Subject: s test
+
 Date: Mon, 13 Sep 1999 13:36:54 -0700
+
 From: jkf &lt;jkf@verada.com&gt;
 
+
+
 secret word: blitzfig
+
 ok?
+
 &quot;</pre>
 </div>
 
@@ -778,9 +848,13 @@ we have only six messages in the mailbox.</strong></p>
 <div align="left">
 
 <pre>
-user(11): (po:delete-letter mb 68 :uid t)
+
+user(11): (delete-letter mb 68 :uid t)
+
 (7)
-user(12): (po:mailbox-message-count mb)
+
+user(12): (mailbox-message-count mb)
+
 6</pre>
 </div>
 
@@ -792,9 +866,13 @@ do we issue the noop command, which does nothing on the server.</strong></p>
 <div align="left">
 
 <pre>
-user(13): (po:noop mb)
+
+user(13): (noop mb)
+
 nil
-user(14): (po:mailbox-message-count mb)
+
+user(14): (mailbox-message-count mb)
+
 7</pre>
 </div>
 
@@ -805,13 +883,21 @@ to specify a sequence of messages.</strong></p>
 <div align="left">
 
 <pre>
-user(15): (po:create-mailbox mb &quot;tempbox&quot;)
+
+user(15): (create-mailbox mb &quot;tempbox&quot;)
+
 t
-user(18): (let ((count (po:mailbox-message-count mb)))
-(po:copy-to-mailbox mb `(:seq 1 ,count) &quot;tempbox&quot;)
-(po:delete-letter mb `(:seq 1 ,count)))
+
+user(18): (let ((count (mailbox-message-count mb)))
+
+(copy-to-mailbox mb `(:seq 1 ,count) &quot;tempbox&quot;)
+
+(delete-letter mb `(:seq 1 ,count)))
+
 (1 1 1 1 1 1 1)
-user(19): (po:mailbox-message-count mb)
+
+user(19): (mailbox-message-count mb)
+
 0</pre>
 </div>
 
@@ -821,9 +907,13 @@ messages are there.</strong></p>
 <div align="left">
 
 <pre>
-user(22): (po:select-mailbox mb &quot;tempbox&quot;)
+
+user(22): (select-mailbox mb &quot;tempbox&quot;)
+
 t
-user(23): (po:mailbox-message-count mb)
+
+user(23): (mailbox-message-count mb)
+
 7</pre>
 </div>
 
@@ -836,8 +926,11 @@ the lisp side in order to free up the resources still in use for the now dead co
 <div align="left">
 
 <pre>
-user(24): (po:close-connection mb)
+
+user(24): (close-connection mb)
+
 t
+
 </pre>
 </div>
 
@@ -934,9 +1027,9 @@ a means of reading the information in the header.</p>
 
 <p>Return the unique indentifier for the given message, or for all non-deleted messages if
 <strong>message</strong> is nil.&nbsp;&nbsp; The unique identifier is is a string that is
-different for every message.&nbsp;&nbsp; If <strong> </strong>the <strong>message</strong>
-argument&nbsp; is not given then this command returns a list of lists where each list
-contains two items: the message number and the unique id.</p>
+different for every message.&nbsp;&nbsp; If the <strong>message</strong> argument&nbsp; is
+not given then this command returns a list of lists where each list contains two items:
+the message number and the unique id.</p>
 
 <h1>Cond<a name="conditions"></a>itions</h1>
 
