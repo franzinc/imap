@@ -1,3 +1,9 @@
+2001-05-11  John Foderaro  <jkf@tiger.franz.com>
+
+	* smtp.cl: add test-email-address function to check to see
+	    if an email address can be determined to be bogus without
+	    sending a letter.
+
 2001-05-02  John Foderaro  <jkf@tiger.franz.com>
 1.8
 	* imap will signal a :response-too-large error if it encounter

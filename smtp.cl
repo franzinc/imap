@@ -1,4 +1,4 @@
-;; -*- mode: common-lisp; package: net.aserve -*-
+;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; smtp.cl
 ;;
@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.3 2001/05/04 16:01:45 jkf Exp $
+;; $Id: smtp.cl,v 1.4 2001/05/11 16:40:30 jkf Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -37,7 +37,8 @@
   (:use #:lisp #:excl)
   (:export 
    #:send-letter
-   #:send-smtp))
+   #:send-smtp
+   #:test-email-address))
 
 (in-package :net.post-office)
 
@@ -72,12 +73,20 @@
 ;;    and sent as one message
 ;;
 ;;
+;;  (test-email-address "user@machine.com")
+;;    return t is this could be a valid email address on the machine
+;;    named.  Do this by contacting the mail server and using the VRFY
+;;    command from smtp.  Since some mail servers don't implement VRFY
+;;    we return t if VRFY doesn't work.
+;;    nil means that this address is bad (or we can't make contact with
+;;    the mail server, which could of course be a transient problem).
+;;
 
 
 
 
 
-(defmacro response-case ((smtp-stream &optional smtp-response) &rest case-clauses)
+(defmacro response-case ((smtp-stream &optional smtp-response response-code) &rest case-clauses)
   ;; get a response from the smtp server and dispatch in a 'case' like
   ;; fashion to a clause based on the first digit of the return
   ;; code of the response.
@@ -85,8 +94,9 @@
   ;;  the actual response
   ;; 
   (let ((response-class (gensym)))
-    `(multiple-value-bind (,response-class ,@(if* smtp-response
-						then (list smtp-response)))
+    `(multiple-value-bind (,response-class 
+			   ,@(if* smtp-response then (list smtp-response))
+			   ,@(if* response-code then (list response-code)))
 	 (progn (force-output ,smtp-stream)
 		(wait-for-response ,smtp-stream))
        ;;(declare (ignorable smtp-response))
@@ -164,28 +174,11 @@
   ;; 'to' can be a single string or a list of strings.
   ;; each string should be in the official rfc822 format  "foo@bar.com"
   ;;
-  (let ((sock (socket:make-socket :remote-host server
-				  :remote-port 25  ; smtp
-				  )))
+
+  (let ((sock (connect-to-mail-server server)))
+  
     (unwind-protect
 	(progn
-	  (response-case (sock msg)
-	    (2 ;; to the initial connect
-	     nil)
-	    (t (error "initial connect failed: ~s" msg)))
-	  
-	  ;; now that we're connected we can compute our hostname
-	  (let ((hostname (socket:ipaddr-to-hostname
-			   (socket:local-host sock))))
-	    (if* (null hostname)
-	       then (setq hostname
-		      (format nil "[~a]" (socket:ipaddr-to-dotted
-					  (socket:local-host sock)))))
-	    (smtp-command sock "HELO ~a" hostname)
-	    (response-case (sock msg)
-	      (2 ;; ok
-	       nil)
-	      (t (error "hello greeting failed: ~s" msg))))
 	    
 	  (smtp-command sock "MAIL from:<~a>" from)
 	  (response-case (sock msg)
@@ -248,7 +241,99 @@
 	    (t (error "quit failed: ~s" msg))))
       (close sock))))
 
+(defun connect-to-mail-server (server)
+  ;; make that initial connection to the mail server
+  ;; returning a socket connected to it and 
+  ;; signaling an error if it can't be made.
+  (let ((ipaddr (determine-mail-server server))
+	(sock)
+	(ok))
+    
+    (if* (null ipaddr)
+       then (error "Can't determine ip addres for mail server ~s" server))
+    
+    (setq sock (socket:make-socket :remote-host ipaddr
+				   :remote-port 25  ; smtp
+				   ))
+    (unwind-protect
+	(progn
+	  (response-case (sock msg)
+	    (2 ;; to the initial connect
+	     nil)
+	    (t (error "initial connect failed: ~s" msg)))
+	  
+	  ;; now that we're connected we can compute our hostname
+	  (let ((hostname (socket:ipaddr-to-hostname
+			   (socket:local-host sock))))
+	    (if* (null hostname)
+	       then (setq hostname
+		      (format nil "[~a]" (socket:ipaddr-to-dotted
+					  (socket:local-host sock)))))
+	    (smtp-command sock "HELO ~a" hostname)
+	    (response-case (sock msg)
+	      (2 ;; ok
+	       nil)
+	      (t (error "hello greeting failed: ~s" msg))))
+	  
+	  ; all is good
+	  (setq ok t))
+      
+      ; cleanup:
+      (if* (null ok) 
+	 then (close sock :abort t)
+	      (setq sock nil)))
+    
+    ; return:
+    sock
+    ))
+	    
 
+  
+(defun test-email-address (address)
+  ;; test to see if we can determine if the address is valid
+  ;; return nil if the address is bogus
+  ;; return t if the address may or may not be bogus
+  (if* (or (not (stringp address))
+	   (zerop (length address)))
+     then (error "mail address should be a non-empty string: ~s" address))
+  
+  ; split on the @ sign
+  (let (name hostname)
+    (let ((pos (position #\@ address)))
+      (if* (null pos)
+	 then (setq name address
+		    hostname "localhost")
+       elseif (or (eql pos 0)
+		  (eql pos (1- (length address))))
+	 then ; @ at beginning or end, bogus since we don't do route addrs
+	      (return-from test-email-address nil)
+	 else (setq name (subseq address 0 pos)
+		    hostname (subseq address (1+ pos)))))
+  
+    (let ((sock (ignore-errors (connect-to-mail-server hostname))))
+      (if* (null sock) then (return-from test-email-address nil))
+    
+      (unwind-protect
+	  (progn
+	    (smtp-command sock "VRFY ~a" name)
+	    (response-case (sock msg code)
+	      (5
+	       (if* (eq code 550)
+		  then ; no such user
+		       msg ; to remove unused warning
+		       nil
+		  else t ; otherwise we don't know
+		       ))
+	      (t t)))
+	(close sock :abort t)))))
+	    
+	    
+    
+    
+    
+	    
+	    
+	    
 
 
 
@@ -312,7 +397,12 @@
       (let ((class (or (and (> (length res) 0)
 			    (digit-char-p (aref res 0)))
 		       -1)))
-	(values class res)))))      
+	(values class res
+		(if* (>= (length res) 3)
+		   then ; compute the whole response value
+			(+ (* (or (digit-char-p (aref res 0)) 0) 100)
+			   (* (or (digit-char-p (aref res 1)) 0) 10)
+			   (or (digit-char-p (aref res 2)) 0))))))))
 
 (defun smtp-command (stream &rest format-args)
   ;; send a command to the smtp server
@@ -356,4 +446,33 @@
 
       (setq last-ch ch))))
 
+
+(defun determine-mail-server (name)
+  ;; return the ipaddress to be used to connect to the 
+  ;; the mail server.
+  ;; name is any method for naming a machine:
+  ;;   integer ip address
+  ;;   string with dotted ip address
+  ;;   string naming a machine
+  ;; we can only do the mx lookup for the third case, the rest 
+  ;; we just return the ipaddress for what we were given
+  ;;
+  (let (ipaddr)
+    (if* (integerp name)
+       then name
+     elseif (integerp (setq ipaddr
+			(socket:dotted-to-ipaddr name :errorp nil)))
+       then ipaddr
+       else ; do mx lookup if acldns is being used
+	    (if* (or (eq socket:*dns-mode* :acldns)
+		     (member :acldns socket:*dns-mode* :test #'eq))
+	       then (let ((res (socket:dns-query name :type :mx)))
+		      (if* (and res (consp res))
+			 then (cadr res) ; the ip address
+			 else (socket:dns-query name :type :a)))
+	       else ; just do a hostname lookup
+		    (ignore-errors (socket:lookup-hostname name))))))
+		    
+  
+    
 (provide :smtp)
