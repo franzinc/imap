@@ -287,3 +287,5 @@
 	 then (vector-push-extend ch res))
 
       (setq last-ch ch))))
+
+(provide :smtp)

@@ -1,3 +1,7 @@
+2000-09-05  Kevin Layer  <layer@ultra>
+
+	* smtp.cl: add provide
+
 2000-06-08    <jkf@CROW>
 1.7
 	* imap.cl: add parse-mail-header function to return mail headers
