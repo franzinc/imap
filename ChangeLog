@@ -1,8 +1,19 @@
 *******************************************************************************
+Fri Jan 10 08:18:09 PST 2003
+merge from trunk to acl62 branch
+command:
+../../join.sh trunk trunk_to_acl62_merge1 trunk_to_acl62_merge2 imap
+*******************************************************************************
+
+*******************************************************************************
 Mon Jun 17 12:42:56 PDT 2002
 merge from trunk to acl62 branch
 command: ../../join.sh trunk acl62 trunk_to_acl62_merge1 imap
 *******************************************************************************
+
+2003-01-10  Kevin Layer  <layer@crikey>
+
+	* smtp.cl: test-email-address: do VRFY on address, too.
 
 2002-06-17  Kevin Layer  <layer@crikey>
 

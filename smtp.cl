@@ -23,7 +23,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.2.14.6.2.2 2002/06/17 19:43:28 layer Exp $
+;; $Id: smtp.cl,v 1.2.14.6.2.3 2003/01/10 16:18:59 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -325,8 +325,17 @@
 		  then ; no such user
 		       msg ; to remove unused warning
 		       nil
-		  else t ; otherwise we don't know
-		       ))
+		  else ;; otherwise we don't know
+		       (return-from test-email-address t)))
+	      (t (return-from test-email-address t)))
+	    (smtp-command sock "VRFY ~a" address)
+	    (response-case (sock msg code)
+	      (5
+	       (if* (eq code 550)
+		  then ; no such user
+		       msg ; to remove unused warning
+		       nil
+		  else t))
 	      (t t)))
 	(close sock :abort t)))))
 	    
