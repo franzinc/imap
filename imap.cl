@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.15 2000/06/08 14:31:11 jkf Exp $
+;; $Id: imap.cl,v 1.16 2000/06/08 14:41:00 jkf Exp $
 
 ;; Description:
 ;;
@@ -1358,7 +1358,8 @@
 		     (concatenate 'string (cdr (car headers))
 				  " " 
 				  value)))))))
-    headers))
+    (values headers
+	    (subseq text next end))))
 
 
 (defun make-envelope-from-text (text)
