@@ -3,7 +3,8 @@
 ;; imap.cl
 ;; imap and pop interface
 ;;
-;; copyright (c) 1999 Franz Inc, Berkeley, CA  - All rights reserved.
+;; copyright (c) 1999 Franz Inc, Berkeley, CA - All rights reserved.
+;; copyright (c) 1999-2004 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; The software, data and information contained herein are proprietary
 ;; to, and comprise valuable trade secrets of, Franz, Inc.  They are
@@ -19,7 +20,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.24 2003/10/28 21:52:08 jkf Exp $
+;; $Id: imap.cl,v 1.25 2004/01/16 19:31:52 layer Exp $
 
 ;; Description:
 ;;
