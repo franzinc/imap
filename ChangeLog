@@ -1,3 +1,7 @@
+2000-10-17  Kevin Layer  <layer@ultra>
+
+	* smtp.cl: send-letter: add `headers' keyword argument
+
 2000-09-05  Kevin Layer  <layer@ultra>
 
 	* smtp.cl: add provide

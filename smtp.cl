@@ -56,7 +56,8 @@
 
 (defun send-letter (server from to message
 		    &key subject
-			 reply-to)
+			 reply-to
+			 headers)
   (let ((header (make-string-output-stream)))
     (format header "From: ~a~c~cTo: "
 	    from
@@ -76,6 +77,13 @@
     (if* reply-to
        then (format header "Reply-To: ~a~c~c" reply-to #\return #\linefeed))
     
+    (when headers
+      (if* (stringp headers)
+	 then (setq headers (list headers))
+       elseif (consp headers)
+	 thenret
+	 else (error "Unknown headers format: ~s." headers))
+      (dolist (h headers) (format header "~a~c~c" h #\return #\linefeed)))
     
     (format header "~c~c" #\return #\linefeed)
     
