@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.5 1999/09/29 16:25:23 jkf Exp $
+;; $Id: imap.cl,v 1.6 1999/10/27 19:16:31 jkf Exp $
 
 ;; Description:
 ;;
@@ -75,6 +75,12 @@
    #:make-imap-connection
    #:make-pop-connection
    #:noop
+   
+   #:po-condition
+   #:po-condition-indentifier
+   #:po-condition-server-string
+   #:po-error
+   
    #:rename-mailbox
    #:search-mailbox
    #:select-mailbox
@@ -83,8 +89,9 @@
 
 (in-package :post-office)
 
+(provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 1)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 2)) ; major.minor
 
 (defvar *debug-imap* nil)
 
@@ -194,6 +201,125 @@
   )
 
 
+
+;--------------------------------
+; conditions
+;
+; We define a set of conditions that are signalled due to events
+; in the imap interface.
+; Each condition has an indentifier which is a keyword.  That can
+; be used in the handling code to identify the class of error.
+; All our conditions are po-condition or po-error (which is a subclass of
+; po-condition).
+;
+; A condition will have a server-string value if it as initiated by 
+; something returned by the server.
+; A condition will have a format-control value if we want to display 
+; something we generated in response to 
+; 
+;
+;
+;; identifiers used in conditions/errors
+
+; :problem  condition
+;	the server responded with 'no' followed by an explanation.
+;	this mean that something unusual happend and doesn't necessarily
+;	mean that the command has completely failed (but it might).
+;	
+; :unknown-ok   condition
+;	the server responded with an 'ok' followed by something
+;	we don't recognize.  It's probably safe to ignore this.
+;
+;  :unknown-untagged condition
+;	the server responded with some untagged command we don't
+;	recognize.  it's probaby ok to ignore this.
+;
+;  :error-response  error
+;	the command failed.
+;
+;  :syntax-error   error
+;	the data passed to a function in this interface was malformed
+;
+;  :unexpected    error
+;	the server responded an unexpected way.
+;
+;  :server-shutdown-connection error
+;	the server has shut down the connection, don't attempt to
+;       send any more commands to this connection, or even close it.
+;
+;  :timeout  error
+;	server failed to respond within the timeout period
+
+
+
+;; conditions
+(define-condition po-condition ()
+  ;; used to notify user of things that shouldn't necessarily stop
+  ;; program flow
+  ((identifier 
+    ;; keyword identifying the error (or :unknown)
+    :reader po-condition-identifier	
+    :initform :unknown
+    :initarg :identifier
+    )
+   (server-string 
+    ;; message from the imap server
+    :reader po-condition-server-string
+    :initform ""
+    :initarg :server-string
+    ))
+  (:report
+   (lambda (con stream)
+     (with-slots (identifier server-string) con
+       ;; a condition either has a server-string or it has a 
+       ;; format-control string
+       (format stream "Post Office condition: ~s~%" identifier)
+       (if* (and (slot-boundp con 'excl::format-control)
+		 (excl::simple-condition-format-control con))
+	  then (apply #'format stream
+		      (excl::simple-condition-format-control con)
+		      (excl::simple-condition-format-arguments con)))
+       (if* server-string
+	  then (format stream
+		       "~&Message from server: ~s"
+		       (string-left-trim " " server-string)))))))
+	       
+    
+
+(define-condition po-error (po-condition error) 
+  ;; used to denote things that should stop program flow
+  ())
+
+
+
+;; aignalling the conditions
+
+(defun po-condition (identifier &key server-string format-control 
+			  format-arguments)
+  (signal (make-instance 'po-condition
+	    :identifier identifier
+	    :server-string server-string
+	    :format-control format-control
+	    :format-arguments format-arguments
+	    )))
+	    
+(defun po-error (identifier &key server-string
+		      format-control format-arguments)
+  (error (make-instance 'po-error
+	    :identifier identifier
+	    :server-string server-string
+	    :format-control format-control
+	    :format-arguments format-arguments)))
+
+			   
+
+;----------------------------------------------
+
+
+
+
+
+
 (defparameter *imap-tags* '("t01" "t02" "t03" "t04" "t05" "t06" "t07"))
 (defvar *cur-imap-tags* nil)
 
@@ -215,17 +341,20 @@
 		 :timeout timeout
 		 :state :unauthorized)))
     
-    (multiple-value-bind (tag)
+    (multiple-value-bind (tag cmd count extra comment)
 	(get-and-parse-from-imap-server imap)
+      (declare (ignore cmd count extra))
       (if* (not (eq :untagged tag))
-	 then  (error "unexpected line from server after connect")))
+	 then  (po-error :error-response
+			 :server-string comment)))
       
     ; now login
     (send-command-get-results imap 
 			      (format nil "login ~a ~a" user password)
 			      #'handle-untagged-response
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra comment)
 				  (check-for-success mb command count extra
+						     comment
 						     "login")))
     
     ; find the separator character
@@ -253,8 +382,9 @@
 	      #'(lambda (mb command count extra)
 		  (declare (ignore mb command count extra))
 		  nil)
-	      #'(lambda (mb command count extra)
+	      #'(lambda (mb command count extra comment)
 		  (check-for-success mb command count extra
+				     comment
 				     "logout")))))
     (setf (post-office-socket mb) nil)
     (if* sock then (ignore-errors (close sock)))
@@ -289,7 +419,9 @@
     (multiple-value-bind (result)
 	(get-and-parse-from-pop-server pop)
       (if* (not (eq :ok result))
-	 then  (error "unexpected line from server after connect")))
+	 then  (po-error :error-response
+			 :format-control
+			 "unexpected line from server after connect")))
       
     ; now login
     (send-pop-command-get-results pop (format nil "user ~a" user))
@@ -318,12 +450,12 @@
 		    "~a ~a~a" tag command *crlf*)
 	    (force-output))
     (loop
-      (multiple-value-bind (got-tag cmd count extra)
+      (multiple-value-bind (got-tag cmd count extra comment)
 	  (get-and-parse-from-imap-server mb)
 	(if* (eq got-tag :untagged)
-	   then (funcall untagged-handler mb cmd count extra)
+	   then (funcall untagged-handler mb cmd count extra comment)
 	 elseif (equal tag got-tag)
-	   then (funcall tagged-handler mb cmd count extra)
+	   then (funcall tagged-handler mb cmd count extra comment)
 		(return)
 	   else (warn "received tag ~s out of order" got-tag))))))
 
@@ -335,7 +467,7 @@
        else (setq *cur-imap-tags* *imap-tags*)
 	    (pop *cur-imap-tags*))))
 
-(defun handle-untagged-response (mb command count extra)
+(defun handle-untagged-response (mb command count extra comment)
   ;; default function to handle untagged responses, which are 
   ;; really just returning general state information about
   ;; the mailbox
@@ -345,9 +477,10 @@
     (:flags  (setf (mailbox-flags mb) (mapcar #'kwd-intern extra)))
     (:bye ; occurs when connection times out or mailbox lock is stolen
      (ignore-errors (close (post-office-socket mb)))
-     (error "connection to the imap server was closed by the server"))
+     (po-error :server-shutdown-connection
+		 :server-string "server shut down the connection"))
     (:no ; used when grabbing a lock from another process
-     (warn "grabbing mailbox lock from another process"))
+     (po-condition :problem :server-string comment))
     (:ok ; a whole variety of things
      (if* extra
 	then (if* (equalp (car extra) "unseen")
@@ -359,8 +492,8 @@
 	      elseif (equalp (car extra) "permanentflags")
 		then (setf (mailbox-permanent-flags mb) 
 		       (mapcar #'kwd-intern (cadr extra)))
-		else (warn "unknown ok response ~s" extra))))
-    (t (warn "unknown untagged response ~a ~a" command extra)))
+		else (po-condition :unknown-ok :server-string comment))))
+    (t (po-condition :unknown-untagged :server-string comment)))
 	     
   )
 
@@ -378,7 +511,8 @@
   (multiple-value-bind (result parsed line)
       (get-and-parse-from-pop-server pop)
     (if* (not (eq result :ok))
-       then (error "error from pop server: ~a" line))
+       then (po-error :error-response
+		      :server-string line))
 
     (if* extrap
        then ; get the rest of the data
@@ -393,13 +527,17 @@
 		  (sock (post-office-socket pop)))
 	      (flet ((add-to-buffer (ch)
 		       (if* (>= pos (length buf))
-			  then (error "missinfomation from pop")
+			  then (po-error :unexpected
+					 :format-control 
+					 "missinfomation from pop"
+					 :server-string line)
 			  else (setf (schar buf pos) ch)
 			       (incf pos))))
 		(loop
 		  (let ((ch (read-char sock nil nil)))
 		    (if* (null ch)
-		       then (error "premature end of file from server"))
+		       then (po-error :unexpected
+				      :format-control "premature end of file from server"))
 		    (if* (eq ch #\return)
 		       thenret ; ignore crs
 		       else (case state
@@ -441,10 +579,14 @@
   (send-command-get-results mb
 			    (format nil "select ~a" name)
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				(declare (ignore mb count extra))
 				(if* (not (eq command :ok))
-				   then (error "imap mailbox select failed"))))
+				   then (po-error 
+					 :problem
+					 :format-control 
+					 "imap mailbox select failed"
+					 :server-string comment))))
   (setf (mailbox-name mb) name)
   t
   )
@@ -473,15 +615,17 @@
 	     (message-set-string number)
 	     (or parts "body[]")
 	     )
-     #'(lambda (mb command count extra)
+     #'(lambda (mb command count extra comment)
 	 (if* (eq command :fetch)
 	    then (push (list count (internalize-flags extra)) res)
 	    else (handle-untagged-response
-		  mb command count extra)))
-     #'(lambda (mb command count extra)
+		  mb command count extra comment)))
+     #'(lambda (mb command count extra comment)
 	 (declare (ignore mb count extra))
 	 (if* (not (eq command :ok))
-	    then (error "imap mailbox fetch failed"))))
+	    then (po-error :problem
+			   :format-control "imap mailbox fetch failed"
+			   :server-string comment))))
     res))
 
 		      
@@ -546,8 +690,9 @@
      then (setq messages (list messages)))
   
   (if* (not (consp messages))
-     then (error "expect a mesage number or list of messages, not ~s"
-		 messages))
+     then (po-error :syntax-error
+		    :format-control "expect a mesage number or list of messages, not ~s"
+		 :format-arguments (list messages)))
   
   (dolist (message messages)
     (if* (numberp message)
@@ -559,7 +704,9 @@
 		((> start end))
 	      (send-pop-command-get-results pb
 					    (format nil "DELE ~d" start)))
-       else (error "bad message number ~s" message))))
+       else (po-error :syntax-error
+		      :format-control "bad message number ~s" 
+		      :format-arguments (list message)))))
 	    
 	    
 			    
@@ -571,9 +718,10 @@
   (send-command-get-results mb
 			    "noop"
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				(check-for-success
 				 mb command count extra
+				 comment
 				 "noop"))))
 
 
@@ -584,10 +732,13 @@
   )
 
 
-(defun check-for-success (mb command count extra command-string)
+(defun check-for-success (mb command count extra comment command-string )
   (declare (ignore mb count extra))
   (if* (not (eq command :ok))
-     then (error "imap ~a failed" command-string)))
+     then (po-error :error-response
+		    :format-control "imap ~a failed" 
+		    :format-arguments (list command-string)
+		    :server-string comment)))
 
   
 			    
@@ -598,14 +749,16 @@
   (let (res)
     (send-command-get-results mb
 			      (format nil "list ~s ~s" reference pattern)
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra comment)
 				  (if* (eq command :list)
 				     then (push extra res)
 				     else (handle-untagged-response
-					   mb command count extra)))
-			      #'(lambda (mb command count extra)
+					   mb command count extra
+					   comment)))
+			      #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "list")))
+				   mb command count extra 
+				   comment "list")))
     
     ;; the car of each list is a set of keywords, make that so
     (dolist (rr res)
@@ -623,9 +776,10 @@
   (send-command-get-results mb
 			    (format nil "create ~s" mailbox-name)
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "create")))
+				   mb command count extra 
+				   comment "create")))
   t)
 
 
@@ -635,9 +789,10 @@
   (send-command-get-results mb
 			    (format nil "delete ~s" mailbox-name)
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "delete"))))
+				   mb command count extra 
+				   comment "delete"))))
 
 (defmethod rename-mailbox ((mb imap-mailbox) old-mailbox-name new-mailbox-name)
   ;; create a mailbox name of the given name.
@@ -647,9 +802,11 @@
 				    old-mailbox-name
 				    new-mailbox-name)
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "rename"))))
+				   mb command count extra 
+				   comment
+				   "rename"))))
 
 
 
@@ -682,18 +839,20 @@
 				      (if* val
 					 thenret
 					 else "()"))
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra comment)
 				  (if* (eq command :fetch)
 				     then (push (list count 
 						      (convert-flags-plist
 						       extra))
 						res)
 				     else (handle-untagged-response
-					   mb command count extra)))
+					   mb command count extra
+					   comment)))
 			      
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "store")))
+				   mb command count extra 
+				   comment "store")))
     res))
 
 
@@ -715,7 +874,9 @@
 		       elseif (eq :seq (car msg))
 			 then (format str
 				      "~a:~a" (cadr msg) (caddr msg))
-			 else (error "bad message list ~s" msg))
+			 else (po-error :syntax-error
+					:format-control "bad message list ~s" 
+					:format-arguments (list msg)))
 		      (setq precomma t))
 		    (get-output-stream-string str)))))
 				   
@@ -729,14 +890,17 @@
   (let (res)
     (send-command-get-results mb
 			      "expunge"
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra
+					 comment)
 				  (if* (eq command :expunge)
 				     then (push count res)
 				     else (handle-untagged-response
-					   mb command count extra)))
-			      #'(lambda (mb command count extra)
+					   mb command count extra
+					   comment)))
+			      #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "expunge")))
+				   mb command count extra 
+				   comment "expunge")))
     (nreverse res)))
     
     
@@ -747,9 +911,10 @@
 			    "close"
 			    #'handle-untagged-response
 			      
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				(check-for-success 
-				 mb command count extra "close")))
+				 mb command count extra 
+				 comment "close")))
   t)
   
 
@@ -762,9 +927,10 @@
 				    (message-set-string message-list)
 				    destination)
 			    #'handle-untagged-response
-			    #'(lambda (mb command count extra)
+			    #'(lambda (mb command count extra comment)
 				(check-for-success 
-				 mb command count extra "copy")))
+				 mb command count extra 
+				 comment "copy")))
   t)
 
 
@@ -776,14 +942,16 @@
 			      (format nil "~asearch ~a" 
 				      (if* uid then "uid " else "")
 				      (build-search-string search-expression))
-			      #'(lambda (mb command count extra)
+			      #'(lambda (mb command count extra comment)
 				  (if* (eq command :search)
 				     then (setq res (append res extra))
 				     else (handle-untagged-response
-					   mb command count extra)))
-			      #'(lambda (mb command count extra)
+					   mb command count extra
+					   comment)))
+			      #'(lambda (mb command count extra comment)
 				  (check-for-success 
-				   mb command count extra "search")))
+				   mb command count extra 
+				   comment "search")))
     res))
     
 		       
@@ -877,7 +1045,9 @@
 			    (eq :seq (car val))
 			    (eq 3 (length val)))
 		  then (format str "~s:~s" (cadr val) (caddr val))
-		  else (error "illegal set format ~s" val))
+		  else (po-error :syntax-error
+				 :format-control "illegal set format ~s" 
+				 :format-arguments (list val)))
 	       (if* (cdr xsrch) then (format str ","))))
 	   (arg-process (str args arginfo)
 	     ;; process and print each arg to str
@@ -896,14 +1066,17 @@
 		     then (setq val (universal-time-to-rfc822-date
 				     val))
 		   elseif (not (stringp val))
-		     then (error "illegal value for date search ~s"
-				 val))
+		     then (po-error :syntax-error
+				    :format-control "illegal value for date search ~s"
+				    :format-arguments (list val)))
 		  ;; val is now a string
 		  (format str " ~s" val))
 		 (:number
 		  
 		  (if* (not (integerp val))
-		     then (error "illegal value for number in search ~s" val))
+		     then (po-error :syntax-error
+				    :format-control "illegal value for number in search ~s" 
+				    :format-arguments (list val)))
 		  (format str " ~s" val))
 		 (:flag
 		  
@@ -915,15 +1088,19 @@
 		     then (format str " ~s" val)
 		   elseif (consp val)
 		     then (set-ify val str)
-		     else (error "illegal message set ~s" val)))
+		     else (po-error :syntax-error
+				    :format-control "illegal message set ~s" 
+				    :format-arguments (list val))))
 		  
 		 ))))
     
     (if* (symbolp search)
        then (if* (get search 'imap-search-no-args)
 	       then (format str "~a"  (string-upcase
-					(string search)))
-	       else (error "illegal search word: ~s" search))
+				       (string search)))
+	       else (po-error :syntax-error
+			      :format-control "illegal search word: ~s" 
+			      :format-arguments (list search)))
      elseif (consp search)
        then (case (car search)
 	      (and (if* (null (cdr search))
@@ -937,7 +1114,9 @@
 		      then (bss-int (cadr search) str)
 		      else (or-ify (cdr search)  str)))
 	      (not (if* (not (eql (length search) 2))
-		      then (error "not takes one argument: ~s" search))
+		      then (po-error :syntax-error 
+				     :format-control "not takes one argument: ~s" 
+				     :format-arguments (list search)))
 		   (format str "not (" )
 		   (bss-int (cadr search) str)
 		   (format str ")"))
@@ -949,20 +1128,26 @@
 						'imap-search-args)))
 		      then 
 			   (format str "~a" (string-upcase
-					       (string (car search))))
+					     (string (car search))))
 			   (if* (not (equal (length (cdr search))
 					    (length arginfo)))
-			      then (error "wrong number of arguments to ~s" search))
+			      then (po-error :syntax-error 
+					     :format-control "wrong number of arguments to ~s" 
+					     :format-arguments search))
 			   
 			   (arg-process str (cdr search) arginfo)
 			   
 		    elseif (integerp (car search))
 		      then (set-ify search str)
-		      else (error "Illegal form ~s in search string" search)))))
+		      else (po-error :syntax-error 
+				     :format-control "Illegal form ~s in search string" 
+				     :format-arguments (list search))))))
      elseif (integerp search)
        then ;  a message number
 	    (format str "~s" search)
-       else (error "Illegal form ~s in search string" search))))
+       else (po-error :syntax-error
+		      :format-control "Illegal form ~s in search string" 
+		      :format-arguments (list search)))))
 
 
 
@@ -1013,10 +1198,12 @@
 ;;  bracketted - a list of objects found in []'s after the command
 ;;            or in ()'s after the command  or sometimes just 
 ;;	      out in the open after the command (like the search)
+;;  comment  -- the whole of the part after the command
 ;;
 (defun parse-imap-response (line end)
   (let (kind value next
-	tag count command extra-data)
+	tag count command extra-data
+	comment)
     
     ;; get tag
     (multiple-value-setq (kind value next)
@@ -1026,7 +1213,11 @@
       (:string (setq tag (if* (equal value "*")
 			    then :untagged
 			    else value)))
-      (t (error "Illegal tag on response: ~s" (subseq line 0 count))))
+      (t (po-error :unexpected
+		   :format-control "Illegal tag on response: ~s" 
+		   :format-arguments (list (subseq line 0 count))
+		   :server-string (subseq line 0 end)
+		   )))
       
     ;; get command
     (multiple-value-setq (kind value next)
@@ -1039,8 +1230,13 @@
 		   (get-next-token line next end))
 		 (go again))
 	(:string (setq command (kwd-intern value)))
-	(t (error "Illegal command on response: ~s" (subseq line 0 count)))))
-      
+	(t (po-error :unexpected 
+		     :format-control "Illegal command on response: ~s" 
+		     :format-arguments (list (subseq line 0 count))
+		     :server-string (subseq line 0 end)))))
+
+    (setq comment (subseq line next end))
+    
     ;; now the part after the command... this gets tricky
     (loop
       (multiple-value-setq (kind value next)
@@ -1052,7 +1248,7 @@
 	   (get-next-sexpr line (1- next) end))
 	 (case kind
 	   (:sexpr (push value extra-data))
-	   (t (error "bad sexpr form"))))
+	   (t (po-error :syntax-error :format-control "bad sexpr form"))))
 	(:eof (return nil))
 	((:number :string :nil) (push value extra-data))
 	(t  ; should never happen
@@ -1067,7 +1263,7 @@
        then (setq extra-data (nreverse extra-data)))
     
       
-    (values tag command count extra-data)))
+    (values tag command count extra-data comment)))
       
 
 
@@ -1083,8 +1279,9 @@
     
     (case kind
       ((:string :number :nil)
-        (values :sexpr value next))
-      (:eof (error "eof inside sexpr"))
+       (values :sexpr value next))
+      (:eof (po-error :syntax-error 
+		      :format-control "eof inside sexpr"))
       ((:lbracket :lparen)
        (let (res)
 	 (loop
@@ -1094,10 +1291,12 @@
 	     (:sexpr (push value res))
 	     ((:rparen :rbracket) 
 	      (return (values :sexpr (nreverse res) next)))
-	     (t (error "bad sexpression"))))))
+	     (t (po-error :syntax-error
+			  :format-control "bad sexpression"))))))
       ((:rbracket :rparen)
        (values kind nil next))
-      (t (error "bad sexpression")))))
+      (t (po-error :syntax-error
+		   :format-control "bad sexpression")))))
 
 
 (defun parse-pop-response (line end)
@@ -1114,7 +1313,9 @@
 	(:string (setq result (if* (equal "+OK" value) 
 				 then :ok
 				 else :error)))
-	(t (error "bad response from server: ~s" (subseq line 0 end))))
+	(t (po-error :unexpected
+		     :format-control "bad response from server" 
+		     :server-string (subseq line 0 end))))
     
       (setq lineres (subseq line next end))
 
@@ -1238,13 +1439,15 @@
 		 then ; escaping the next character
 		      (incf start)
 		      (if* (>= start end)
-			 then (error "eof in string returned"))
+			 then (po-error :unexpected
+					:format-control "eof in string returned"))
 		      (setq ch (schar line start)))
 	      (vector-push-extend ch collector)
 	      
 	      (if* (>= start end)
 		 then ; we overran the end of the input
-		      (error "eof in string returned")))))
+		      (po-error :unexpected
+				:format-control "eof in string returned")))))
 	(:big-string
 	 ;; super string... just a block of data
 	 ; (format t "start is ~s  kind is ~s~%" start chkind)
@@ -1302,99 +1505,108 @@
 	 (whole-count) 
 	 )
 
-    (flet ((grow-buffer (size)
-	     (let ((newbuff (get-line-buffer size)))
-	       (dotimes (j i)
-		 (setf (schar newbuff j) (schar buff j)))
-	       (free-line-buffer buff)
-	       (setq buff newbuff)
-	       (setq len (length buff)))))
+    (handler-case 
+	(flet ((grow-buffer (size)
+		 (let ((newbuff (get-line-buffer size)))
+		   (dotimes (j i)
+		     (setf (schar newbuff j) (schar buff j)))
+		   (free-line-buffer buff)
+		   (setq buff newbuff)
+		   (setq len (length buff)))))
 	     
-      ;; increase the buffer to at least size
-      ;; this is somewhat complex to ensure that we aren't doing
-      ;; buffer allocation within the with-timeout form, since 
-      ;; that could trigger a gc which could then cause the 
-      ;; with-timeout form to expire.
-      (loop
+	  ;; increase the buffer to at least size
+	  ;; this is somewhat complex to ensure that we aren't doing
+	  ;; buffer allocation within the with-timeout form, since 
+	  ;; that could trigger a gc which could then cause the 
+	  ;; with-timeout form to expire.
+	  (loop
       
-	(if* whole-count
-	   then ; we should now read in this may bytes and 
-		; append it to this buffer
-		(multiple-value-bind (ans this-count)
-		    (get-block-of-data-from-server mailbox whole-count)
-		  ; now put this data in the current buffer
-		  (if* (> (+ i whole-count 5) len)
-		     then  ; grow the initial buffer
-			  (grow-buffer (+ i whole-count 100)))
+	    (if* whole-count
+	       then ; we should now read in this may bytes and 
+		    ; append it to this buffer
+		    (multiple-value-bind (ans this-count)
+			(get-block-of-data-from-server mailbox whole-count)
+		      ; now put this data in the current buffer
+		      (if* (> (+ i whole-count 5) len)
+			 then  ; grow the initial buffer
+			      (grow-buffer (+ i whole-count 100)))
 		
-		  (dotimes (ind this-count)
-		    (setf (schar buff i) (schar ans ind))
+		      (dotimes (ind this-count)
+			(setf (schar buff i) (schar ans ind))
+			(incf i))
+		      (setf (schar buff i) #\^b) ; end of inset string
+		      (incf i)
+		      (free-line-buffer ans)
+		      )
+	     elseif ch
+	       then ; we're growing the buffer holding the line data
+		    (grow-buffer (+ len 200))
+		    (setf (schar buff i) ch)
 		    (incf i))
-		  (setf (schar buff i) #\^b) ; end of inset string
-		  (incf i)
-		  (free-line-buffer ans)
-		  )
-	 elseif ch
-	   then ; we're growing the buffer holding the line data
-		(grow-buffer (+ len 200))
-		(setf (schar buff i) ch)
-		(incf i))
 
-	(block timeout
-	  (mp:with-timeout ((timeout mailbox)
-			    (error "imap server failed to respond"))
-	    ;; read up to lf  (lf most likely preceeded by cr)
-	    (loop
-	      (setq ch (read-char p))
-	      (if* (eq #\linefeed ch)
-		 then ; end of line. Don't save the return
-		      (if* (and (> i 0)
-				(eq (schar buff (1- i)) #\return))
-			 then ; remove #\return, replace with newline
-			      (decf i)
-			      (setf (schar buff i) #\newline)
-			      )
-		      ;; must check for an extended return value which
-		      ;; is indicated by a {nnn} at the end of the line
-		      (block count-check
-			(let ((ind (1- i)))
-			  (if* (and (>= i 0) (eq (schar buff ind) #\}))
-			     then (let ((count 0)
-					(mult 1))
-				    (loop
-				      (decf ind)
-				      (if* (< ind 0) 
-					 then ; no of the form {nnn}
-					      (return-from count-check))
-				      (setf ch (schar buff ind))
-				      (if* (eq ch #\{)
-					 then ; must now read that many bytes
-					      (setf (schar buff ind) #\^b)
-					      (setq whole-count count)
-					      (setq i (1+ ind))
-					      (return-from timeout)
-				       elseif (<= #.(char-code #\0)
-						 (char-code ch)
-						 #.(char-code #\9))
-					 then ; is a digit
-					      (setq count 
-						(+ count
-						   (* mult
-						      (- (char-code ch)
-							 #.(char-code #\0)))))
-					      (setq mult (* 10 mult))
-					 else ; invalid form, get out
-					      (return-from count-check)))))))
+	    (block timeout
+	      (mp:with-timeout ((timeout mailbox)
+				(po-error :timeout
+					  :format-control "imap server failed to respond"))
+		;; read up to lf  (lf most likely preceeded by cr)
+		(loop
+		  (setq ch (read-char p))
+		  (if* (eq #\linefeed ch)
+		     then ; end of line. Don't save the return
+			  (if* (and (> i 0)
+				    (eq (schar buff (1- i)) #\return))
+			     then ; remove #\return, replace with newline
+				  (decf i)
+				  (setf (schar buff i) #\newline)
+				  )
+			  ;; must check for an extended return value which
+			  ;; is indicated by a {nnn} at the end of the line
+			  (block count-check
+			    (let ((ind (1- i)))
+			      (if* (and (>= i 0) (eq (schar buff ind) #\}))
+				 then (let ((count 0)
+					    (mult 1))
+					(loop
+					  (decf ind)
+					  (if* (< ind 0) 
+					     then ; no of the form {nnn}
+						  (return-from count-check))
+					  (setf ch (schar buff ind))
+					  (if* (eq ch #\{)
+					     then ; must now read that many bytes
+						  (setf (schar buff ind) #\^b)
+						  (setq whole-count count)
+						  (setq i (1+ ind))
+						  (return-from timeout)
+					   elseif (<= #.(char-code #\0)
+						      (char-code ch)
+						      #.(char-code #\9))
+					     then ; is a digit
+						  (setq count 
+						    (+ count
+						       (* mult
+							  (- (char-code ch)
+							     #.(char-code #\0)))))
+						  (setq mult (* 10 mult))
+					     else ; invalid form, get out
+						  (return-from count-check)))))))
 					
 		  
-		      (return-from get-line-from-server
-			(values buff i))
-		 else ; save character
-		      (if* (>= i len)
-			 then ; need bigger buffer
-			      (return))
-		      (setf (schar buff i) ch)
-		      (incf i)))))))))
+			  (return-from get-line-from-server
+			    (values buff i))
+		     else ; save character
+			  (if* (>= i len)
+			     then ; need bigger buffer
+				  (return))
+			  (setf (schar buff i) ch)
+			  (incf i)))))))
+      (error (con)
+	;; most likely error is that the server went away
+	(ignore-errors (close p))
+	(po-error :server-shutdown-connection
+		  :format-control "condition  signalled: ~a~%most likely server shut down the connection."
+		  :format-arguments (list con)))
+      )))
 
 
 (defun get-block-of-data-from-server  (mb count &key save-returns)
@@ -1407,7 +1619,8 @@
 	(p (post-office-socket mb))
 	(ind 0))
     (mp:with-timeout ((timeout mb)
-		      (error "imap server timed out"))
+		      (po-error :timeout
+				:format-control "imap server timed out"))
       
       (dotimes (i count)
 	(if* (eq #\return (setf (schar buff ind) (read-char p)))

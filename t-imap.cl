@@ -184,10 +184,10 @@
     
     (test-eql 2 (and :third (po:mailbox-message-count pb)))
     
-    (po:fetch-letter mb 1)
-    (test-err (po:fetch-letter mb 2))
-    (test-err (po:fetch-letter mb 3))
-    (po:fetch-letter mb 4)
+    (po:fetch-letter pb 1)
+    (test-err (po:fetch-letter pb 2))
+    (test-err (po:fetch-letter pb 3))
+    (po:fetch-letter pb 4)
     
     (po:close-connection pb)
     
@@ -204,18 +204,22 @@
 	  
     
 (defun test-imap ()
-  (test-connect)
+  (handler-bind ((po:po-condition 
+		  #'(lambda (con)
+		      (format t "Got imap condition: ~a~%" con))))
+				       
+    (test-connect)
   
-  (test-sends)
+    (test-sends)
 
-  (test-flags)
+    (test-flags)
  
-  (test-mailboxes)
+    (test-mailboxes)
 
-  (test-pop)
+    (test-pop)
   
   
-  )
+    ))
 
 
 (if* *do-test* then (do-test :imap #'test-imap))

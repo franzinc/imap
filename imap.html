@@ -27,6 +27,9 @@ interface.</p>
   </li>
   <li><p align="left"><a href="#pop">the <strong>pop</strong> interface</a></p>
   </li>
+  <li><p align="left"><a href="#conditions">the <strong>conditions</strong> signaled by the <strong>imap</strong>
+    and <strong>pop</strong> interfaces.</a></p>
+  </li>
   <li><p align="left"><a href="#smtp">the <strong>smtp</strong> interface</a> (used for
     sending mail)</p>
   </li>
@@ -314,6 +317,18 @@ this command has finished there is no currently selected mailbox.</p>
 
 <p align="left">&nbsp;</p>
 
+<p align="left"><strong><font face="Courier New">(copy-to-mailbox mailbox messages
+destination &amp;key uid)</font></strong></p>
+
+<p align="left">copies the specified <strong>messages </strong>from the currently selected
+mailbox to the mailbox named <strong>destination</strong> (given as a string). &nbsp; The
+flags are copied as well. The destination mailbox must already exist.&nbsp; The messages
+are <strong>not</strong> removed from the selected mailbox after the copy &nbsp; .If <strong>uid</strong>
+is true then the <strong>messages</strong> are considered to be unique ids rather than
+message sequence numbers. </p>
+
+<p align="left">&nbsp;</p>
+
 <p align="left"><font face="Courier New"><strong>(delete-letter mailbox messages &amp;key
 expunge uid</strong></font>)</p>
 
@@ -408,7 +423,7 @@ this can be check using <strong>mailbox-message-count</strong>.&nbsp;&nbsp;&nbsp
 
 <p align="left">&nbsp;</p>
 
-<p align="left"><font face="Courier New"><strong>(search-mailbox search-expression
+<p align="left"><font face="Courier New"><strong>(search-mailbox mailbox search-expression
 &amp;key uid)</strong></font></p>
 
 <p align="left">return a list of messages in the mailbox that satisfy the<strong>
@@ -830,7 +845,7 @@ t
 
 <h1><a name="pop"></a>The Pop interface</h1>
 
-<p>The <strong>pop</strong> protocol is a very simple means for retreiving messages from a
+<p>The <strong>pop</strong> protocol is a very simple means for retrieving messages from a
 single mailbox.&nbsp;&nbsp;&nbsp;&nbsp; The functions in the interface are:</p>
 
 <p>&nbsp;</p>
@@ -896,6 +911,109 @@ we don't send a 'noop' command to the pop server, instead we send a 'stat' comma
 will contain the current count of messages in the mailbox.</p>
 
 <p>&nbsp;</p>
+
+<h1>Cond<a name="conditions"></a>itions</h1>
+
+<p>When an unexpected event occurs a condition is signaled.&nbsp;&nbsp; This applies to
+both the <strong>imap</strong> and <strong>pop</strong> interfaces.&nbsp; There are two
+classes of conditions signaled by this package:
+
+<ul>
+  <li><strong>po-condition</strong> - this class denotes conditions that need not and in fact
+    should not interrupt program flow.&nbsp;&nbsp; When the mailbox server is responding to a
+    command it sometimes sends informational warning messages and we turn them into
+    conditions.&nbsp;&nbsp;&nbsp; It's important for all messages from the server to be read
+    and processed otherwise the next command issued will see messages in response to the
+    previous command.&nbsp;&nbsp; Therefore the user code should never do a non-local-transfer
+    in response to a <strong>po-condition.</strong></li>
+  <li><strong>po-error - </strong> this class denotes conditions that will prevent execution
+    from continuing.&nbsp; If one of these errors is not caught, the interactive debugger will
+    be entered.</li>
+</ul>
+
+<p>Instances of both of these condition classes have these slots in addition to the
+standard condition slots:&nbsp; </p>
+
+<table border="1" width="100%">
+  <tr>
+    <td width="16%">Name</td>
+    <td width="24%">Accessor</td>
+    <td width="60%">Value</td>
+  </tr>
+  <tr>
+    <td width="16%">identifier</td>
+    <td width="24%">po-condition-identifier</td>
+    <td width="60%">keyword describing the kind of condition being signaled.&nbsp; See the
+    table below for the possible values.</td>
+  </tr>
+  <tr>
+    <td width="16%">server-string</td>
+    <td width="24%">po-condition-server-string</td>
+    <td width="60%">If the condition was created because of a messages sent from the mailbox
+    server then this is that message.</td>
+  </tr>
+</table>
+
+<p>The meaning of the identifier value is as follows</p>
+
+<table border="1" width="100%">
+  <tr>
+    <td width="11%"><strong>Identifier</strong></td>
+    <td width="13%">Kind</td>
+    <td width="76%">Meaning</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:problem</strong></td>
+    <td width="13%">po-condition</td>
+    <td width="76%">The server has responded with a warning message.&nbsp;&nbsp; The most
+    likely warning is that the mailbox can only be opened in read-only mode due to another
+    processing using it.</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:unknown-ok</strong></td>
+    <td width="13%">po-condition</td>
+    <td width="76%">The server has sent an informative message that we don't understand.
+    &nbsp; It's probably safe to ignore this.</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:unknown-untagged</strong></td>
+    <td width="13%">po-condition</td>
+    <td width="76%">The server has sent an informative message that we don't understand.
+    &nbsp; It's probably safe to ignore this.</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:error-response</strong></td>
+    <td width="13%">po-error</td>
+    <td width="76%">The server cannot execute the requested command.</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:syntax-error</strong></td>
+    <td width="13%">po-error</td>
+    <td width="76%">The arguments to a function in this package are malformed.</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:unexpected</strong></td>
+    <td width="13%">po-error</td>
+    <td width="76%">The server has responded a way we don't understand and which prevents us
+    from continuing</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:server-shutdown-connection</strong></td>
+    <td width="13%">po-error</td>
+    <td width="76%">The connection to the server has been broken.&nbsp; This usually occurs
+    when the connection has been idle for too long and the server intentionally disconnects.
+    &nbsp;&nbsp; Just before this condition is signaled we close down the socket connection to
+    free up the socket resource on our side.&nbsp; When this condition is signaled the user
+    program should not use the mailbox object&nbsp; again (even to call <strong>close-connection</strong>
+    on it).</td>
+  </tr>
+  <tr>
+    <td width="11%"><strong>:timeout</strong></td>
+    <td width="13%">po-error</td>
+    <td width="76%">The server did not respond quickly enough.&nbsp;&nbsp; The timeout value
+    is set in the call to <strong>make-imap-connection.</strong></td>
+  </tr>
+</table>
 
 <h1><a name="smtp"></a>The smtp interface</h1>
 
