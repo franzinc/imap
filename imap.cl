@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.6 1999/10/27 19:16:31 jkf Exp $
+;; $Id: imap.cl,v 1.7 1999/11/29 21:59:48 jkf Exp $
 
 ;; Description:
 ;;
@@ -91,7 +91,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 2)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 3)) ; major.minor
 
 (defvar *debug-imap* nil)
 
@@ -457,7 +457,10 @@
 	 elseif (equal tag got-tag)
 	   then (funcall tagged-handler mb cmd count extra comment)
 		(return)
-	   else (warn "received tag ~s out of order" got-tag))))))
+	   else (po-error :error-response
+			  :format-control "received tag ~s out of order" 
+			  :format-arguments (list got-tag)
+			  :server-string comment))))))
 
 
 (defun get-next-tag ()
@@ -1537,6 +1540,7 @@
 		      (setf (schar buff i) #\^b) ; end of inset string
 		      (incf i)
 		      (free-line-buffer ans)
+		      (setq whole-count nil)
 		      )
 	     elseif ch
 	       then ; we're growing the buffer holding the line data
@@ -1544,6 +1548,7 @@
 		    (setf (schar buff i) ch)
 		    (incf i))
 
+	    
 	    (block timeout
 	      (mp:with-timeout ((timeout mailbox)
 				(po-error :timeout

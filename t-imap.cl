@@ -59,7 +59,9 @@
 			      (test-eql 0 (po:mailbox-message-count mb)))
 		      ; remove mailbox (except inbox)
 		      (if* (not (equalp "inbox" (po:mailbox-list-name mblist)))
-			 then (po:delete-mailbox mb (po:mailbox-list-name mblist)))
+			 then ; must not be selected if we want to del
+			      (po:select-mailbox mb "inbox") 
+			      (po:delete-mailbox mb (po:mailbox-list-name mblist)))
       
 		      )))
       

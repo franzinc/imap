@@ -1,3 +1,8 @@
+1999-11-29  John Foderaro  <jkf@tiger.franz.com>
+version 1.3
+	* imap.cl - fixed bug where extra ^b's ended up in strings
+	* imap.html - fixed ref to wrong function
+
 1999-10-27  John Foderaro  <jkf@tiger.franz.com>
 version 1.2
 	
