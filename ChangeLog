@@ -1,7 +1,14 @@
 *******************************************************************************
 merge from trunk to acl6 branch (for 6.1.beta)
-command: ../../join.sh trunk acl6 trunk_to_acl6_merge1 aserve
+command: ../../join.sh trunk trunk_to_acl6_merge1 trunk_to_acl6_merge2 imap
 *******************************************************************************
+merge from trunk to acl6 branch (for 6.1.beta)
+command: ../../join.sh trunk acl6 trunk_to_acl6_merge1 imap
+*******************************************************************************
+2001-06-26  John Foderaro  <jkf@tiger.franz.com>
+
+	*  imap.cl - fix typo in exported identifier
+
 2001-05-11  John Foderaro  <jkf@tiger.franz.com>
 
 	* smtp.cl: add test-email-address function to check to see

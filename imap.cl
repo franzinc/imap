@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.16.6.1 2001/06/11 20:24:27 layer Exp $
+;; $Id: imap.cl,v 1.16.6.2 2001/06/26 21:07:43 layer Exp $
 
 ;; Description:
 ;;
@@ -80,7 +80,7 @@
    #:unique-id  ; pop only
    
    #:po-condition
-   #:po-condition-indentifier
+   #:po-condition-identifier
    #:po-condition-server-string
    #:po-error
    
