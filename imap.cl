@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.22 2003/06/03 23:53:51 jkf Exp $
+;; $Id: imap.cl,v 1.23 2003/09/18 18:12:29 jkf Exp $
 
 ;; Description:
 ;;
@@ -96,7 +96,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 10)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 11)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -493,7 +493,7 @@
   (case command
     (:exists (setf (mailbox-message-count mb) count))
     (:recent (setf (mailbox-recent-messages mb) count))
-    (:flags  (setf (mailbox-flags mb) (mapcar #'kwd-intern extra)))
+    (:flags  (setf (mailbox-flags mb) (kwd-intern-possible-list extra)))
     (:bye ; occurs when connection times out or mailbox lock is stolen
      (ignore-errors (close (post-office-socket mb)))
      (po-error :server-shutdown-connection
@@ -510,7 +510,7 @@
 		then (setf (mailbox-uidnext mb) (cadr extra))
 	      elseif (equalp (car extra) "permanentflags")
 		then (setf (mailbox-permanent-flags mb) 
-		       (mapcar #'kwd-intern (cadr extra)))
+		       (kwd-intern-possible-list (cadr extra)))
 		else (po-condition :unknown-ok :server-string comment))))
     (t (po-condition :unknown-untagged :server-string comment)))
 	     
@@ -710,8 +710,11 @@
   (do ((xx stuff (cddr xx)))
       ((null xx))
     (if* (equalp (car xx) "flags")
-       then (setf (cadr xx) (mapcar #'kwd-intern (cadr xx)))
-	    (return)))
+       then ; we can end up with sublists of forms if we 
+	    ; do add-flags with a list of flags.  this seems like
+	    ; a bug in the imap server.. but we have to deal with it
+	      (setf (cadr xx) (kwd-intern-possible-list (cadr xx)))
+	      (return)))
   
   stuff)
 
@@ -1733,7 +1736,14 @@
 ;  this used to be exported from the excl package
 #+(version>= 6 0)
 (defvar *keyword-package* (find-package :keyword))
-	   
+
+(defun kwd-intern-possible-list (form)
+  (if* (null form)
+     then nil
+   elseif (atom form)
+     then (kwd-intern form)
+     else (mapcar #'kwd-intern-possible-list form)))
+
       
 (defun kwd-intern (string)
   ;; convert the string to the current preferred case

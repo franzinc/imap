@@ -1,3 +1,8 @@
+2003-09-18    <jkf@main.verada.com>
+imap 1.11
+	* imap.cl: fix processing of imap flags into keywords so it
+	  handles lists and nil correctly.
+
 2003-05-21  John Foderaro  <jkf@tiger.franz.com>
 imap 1.10
 	* imap.cl - fix bug in parse-mail header when end of headers
