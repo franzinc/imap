@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.19 2002/02/11 18:08:51 jkf Exp $
+;; $Id: imap.cl,v 1.20 2002/03/07 16:57:35 jkf Exp $
 
 ;; Description:
 ;;
@@ -1354,8 +1354,8 @@
 					  (incf next)
 					  (return (if* header
 						     then :start
-						     else :continue)))))
-			       (incf next))))))))
+						     else :continue))))))
+		       (incf next)))))))
 					 
 	       
     
