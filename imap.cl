@@ -1,4 +1,4 @@
-;; -*- mode: common-lisp; package: post-office -*-
+;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; imap.cl
 ;; imap and pop interface
@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.11 2000/04/26 20:53:40 jkf Exp $
+;; $Id: imap.cl,v 1.12 2000/04/26 21:33:40 jkf Exp $
 
 ;; Description:
 ;;
@@ -1695,7 +1695,10 @@
       (incf start))))
 	    
 	    
-	
+
+;  this used to be exported from the excl package
+#+(version>= 6 0)
+(defvar *keyword-package* (find-package :keyword))
 	   
       
 (defun kwd-intern (string)
