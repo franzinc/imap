@@ -2,14 +2,13 @@
 ;;
 ;; smtp -  rfc821
 ;;
-(defpackage :post-office
-  (:nicknames :po)
+(defpackage :net.post-office
   (:use #:lisp #:excl)
   (:export 
    #:send-letter
    #:send-smtp))
 
-(in-package :post-office)
+(in-package :net.post-office)
 
 ;; the exported functions:
 

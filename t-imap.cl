@@ -19,7 +19,7 @@
 (defun test-connect ()
   ;; test connecting and disconnecting from the server
   
-  (let ((mb (po:make-imap-connection *test-machine*
+  (let ((mb (net.post-office:make-imap-connection *test-machine*
 				     :user *test-account*
 				     :password *test-password*)))
     (unwind-protect
@@ -28,19 +28,19 @@
 	  (test-t (not (null mb)))  ; make sure we got a mailbox object
     
 	  ; check that we've stored resonable values in the mb object
-	  (test-equal "/" (po:mailbox-separator mb)) 
+	  (test-equal "/" (net.post-office:mailbox-separator mb)) 
     
-	  (test-t (po::select-mailbox mb "inbox"))
+	  (test-t (net.post-office::select-mailbox mb "inbox"))
     
-	  (test-t (> (po:mailbox-uidvalidity mb) 0))
-	  (test-t (not (null (po:mailbox-flags mb)))))
+	  (test-t (> (net.post-office:mailbox-uidvalidity mb) 0))
+	  (test-t (not (null (net.post-office:mailbox-flags mb)))))
     
-      (test-t (po:close-connection mb)))))
+      (test-t (net.post-office:close-connection mb)))))
 
 
 (defun test-sends ()
   ;; test sending and reading mail
-  (let ((mb (po:make-imap-connection *test-machine*
+  (let ((mb (net.post-office:make-imap-connection *test-machine*
 				     :user *test-account*
 				     :password *test-password*)))
     (unwind-protect
@@ -48,41 +48,41 @@
 	  (test-t (not (null mb)))  ; make sure we got a mailbox object
 
 	  ;; go through the mailboxes and delete all letters
-	  (dolist (mblist (po:mailbox-list mb :pattern "*"))
-	    (if* (not (member :\\noselect (po:mailbox-list-flags mblist)))
-	       then (po:select-mailbox mb (po:mailbox-list-name mblist))
-		    (let ((count (po:mailbox-message-count mb)))
+	  (dolist (mblist (net.post-office:mailbox-list mb :pattern "*"))
+	    (if* (not (member :\\noselect (net.post-office:mailbox-list-flags mblist)))
+	       then (net.post-office:select-mailbox mb (net.post-office:mailbox-list-name mblist))
+		    (let ((count (net.post-office:mailbox-message-count mb)))
 		      ; remove all old mail
 		      (if* (> count 0)
-			 then (po:alter-flags mb `(:seq 1 ,count) :add-flags :\\deleted)
-			      (po:expunge-mailbox mb)
-			      (test-eql 0 (po:mailbox-message-count mb)))
+			 then (net.post-office:alter-flags mb `(:seq 1 ,count) :add-flags :\\deleted)
+			      (net.post-office:expunge-mailbox mb)
+			      (test-eql 0 (net.post-office:mailbox-message-count mb)))
 		      ; remove mailbox (except inbox)
-		      (if* (not (equalp "inbox" (po:mailbox-list-name mblist)))
+		      (if* (not (equalp "inbox" (net.post-office:mailbox-list-name mblist)))
 			 then ; must not be selected if we want to del
-			      (po:select-mailbox mb "inbox") 
-			      (po:delete-mailbox mb (po:mailbox-list-name mblist)))
+			      (net.post-office:select-mailbox mb "inbox") 
+			      (net.post-office:delete-mailbox mb (net.post-office:mailbox-list-name mblist)))
       
 		      )))
       
     
 	  ;; send five letters
 	  (dotimes (i 5)
-	    (po:send-smtp *test-machine*
+	    (net.post-office:send-smtp *test-machine*
 			    *test-email*
 			    *test-email*
 			    (format nil "message number ~d" (1+ i))))
     
 	  ; test to see if imap figures out that the letters are there
-	  (po:select-mailbox mb "inbox")
+	  (net.post-office:select-mailbox mb "inbox")
 
 	  ; wait a bit for the mail to be delivered
 	  (dotimes (i 5) 
-	    (if* (not (eql 5 (po:mailbox-message-count mb)))
+	    (if* (not (eql 5 (net.post-office:mailbox-message-count mb)))
 	       then (sleep 1)
-		    (po: noop mb)))
+		    (net.post-office: noop mb)))
 	      
-	  (test-eql 5 (po:mailbox-message-count mb))
+	  (test-eql 5 (net.post-office:mailbox-message-count mb))
     
 	  ; test the search facility
 	  ; look for the message number we put in each message.
@@ -90,23 +90,23 @@
 	  (dotimes (i 5)
 	    (let ((mn (1+ i)))
 	      (test-equal (list mn)
-			  (po:search-mailbox mb 
+			  (net.post-office:search-mailbox mb 
 					     `(:body ,(format nil "~d" mn))))))
 	  
 	  ; test getting data from mail message
-	  (let ((fetch-info (po:fetch-parts mb 
+	  (let ((fetch-info (net.post-office:fetch-parts mb 
 					   1
 					   "(envelope body[1])")))
-	    (let ((envelope (po:fetch-field 1 "envelope" fetch-info))
-		  (body (po:fetch-field 1 "body[1]" fetch-info)))
-	      (test-equal "jkfmail" (po:address-mailbox
-				     (car (po:envelope-from envelope))))
-	      (test-nil (po:address-mailbox
-			 (car (po:envelope-to envelope))))
+	    (let ((envelope (net.post-office:fetch-field 1 "envelope" fetch-info))
+		  (body (net.post-office:fetch-field 1 "body[1]" fetch-info)))
+	      (test-equal "jkfmail" (net.post-office:address-mailbox
+				     (car (net.post-office:envelope-from envelope))))
+	      (test-nil (net.post-office:address-mailbox
+			 (car (net.post-office:envelope-to envelope))))
 	      
 	      (test-equal (format nil "message number 1~c" #\newline)
 			  body))))
-      (test-t (po:close-connection mb)))))
+      (test-t (net.post-office:close-connection mb)))))
     
     
 
@@ -115,104 +115,104 @@
   ;;
   ;; assume we have 5 messages in inbox at this time
   ;;
-  (let ((mb (po:make-imap-connection *test-machine*
+  (let ((mb (net.post-office:make-imap-connection *test-machine*
 				     :user *test-account*
 				     :password *test-password*)))
     (unwind-protect
 	(progn
-	  (po:select-mailbox mb "inbox")
+	  (net.post-office:select-mailbox mb "inbox")
 	  
-	  (let ((flags (po:fetch-field 3 
+	  (let ((flags (net.post-office:fetch-field 3 
 				       "flags"
-				       (po:fetch-parts 
+				       (net.post-office:fetch-parts 
 					mb 3 "flags"))))
 	    (test-nil flags))
 				       
 	  ;; add flags
-	  (let ((info (po:alter-flags mb 3 :add-flags :\\deleted)))
+	  (let ((info (net.post-office:alter-flags mb 3 :add-flags :\\deleted)))
 	    (test-equal '(:\\deleted)
-			(po:fetch-field 3 "flags" info)))
+			(net.post-office:fetch-field 3 "flags" info)))
 
 	  ; good bye message
-	  (test-equal '(3) (po:expunge-mailbox mb))
+	  (test-equal '(3) (net.post-office:expunge-mailbox mb))
 	  
-	  (po:alter-flags mb 4 :add-flags ':\\bbbb)
+	  (net.post-office:alter-flags mb 4 :add-flags ':\\bbbb)
 	  (test-equal '(:\\bbbb)
-		      (po:fetch-field 4 "flags"
-				      (po:fetch-parts mb 4
+		      (net.post-office:fetch-field 4 "flags"
+				      (net.post-office:fetch-parts mb 4
 						       "flags")))
 	  
 	  
 	  )
-      (test-t (po:close-connection mb)))))
+      (test-t (net.post-office:close-connection mb)))))
 
 (defun test-mailboxes ()
   ;; should be 4 messages now in inbox
   ;; let's create 4 mailboxes, one for each letter
-  (let ((mb (po:make-imap-connection *test-machine*
+  (let ((mb (net.post-office:make-imap-connection *test-machine*
 				     :user *test-account*
 				     :password *test-password*)))
     (unwind-protect
 	(progn 
-	  (po:select-mailbox mb "inbox")
+	  (net.post-office:select-mailbox mb "inbox")
 	  (dotimes (i 4)
 	    (let ((mbname (format nil "temp/mb~d" i)))
-	      (test-t (po:create-mailbox mb mbname))
-	      (po:copy-to-mailbox mb (1+ i) mbname)))
+	      (test-t (net.post-office:create-mailbox mb mbname))
+	      (net.post-office:copy-to-mailbox mb (1+ i) mbname)))
 	  
 	  ; now check that each new mailbox has one message
 	  (dotimes (i 4)
 	    (let ((mbname (format nil "temp/mb~d" i)))
-	      (po:select-mailbox mb mbname)
-	      (test-eql 1 (po:mailbox-message-count mb)))))
-      (test-t (po:close-connection mb)))))
+	      (net.post-office:select-mailbox mb mbname)
+	      (test-eql 1 (net.post-office:mailbox-message-count mb)))))
+      (test-t (net.post-office:close-connection mb)))))
 
 
 (defun test-pop ()
   ;; test out the pop interface to the mailbox.
   
-  (let ((pb (po:make-pop-connection *test-machine*
+  (let ((pb (net.post-office:make-pop-connection *test-machine*
 				    :user *test-account*
 				    :password *test-password*)))
     ; still from before
-    (test-eql 4 (po:mailbox-message-count pb))
+    (test-eql 4 (net.post-office:mailbox-message-count pb))
     
-    (test-eql 4 (length (po:unique-id pb)))
+    (test-eql 4 (length (net.post-office:unique-id pb)))
 			 
-    (po:delete-letter pb '(:seq 2 3))
+    (net.post-office:delete-letter pb '(:seq 2 3))
     
-    (test-eql 2 (length (po:unique-id pb)))
+    (test-eql 2 (length (net.post-office:unique-id pb)))
     
-    (test-eql 4 (and :second (po:mailbox-message-count pb)))
+    (test-eql 4 (and :second (net.post-office:mailbox-message-count pb)))
     
-    (po:noop pb)
+    (net.post-office:noop pb)
     
-    (test-eql 2 (and :third (po:mailbox-message-count pb)))
+    (test-eql 2 (and :third (net.post-office:mailbox-message-count pb)))
     
-    (po:fetch-letter pb 1)
-    (test-err (po:fetch-letter pb 2))
-    (test-err (po:fetch-letter pb 3))
-    (po:fetch-letter pb 4)
+    (net.post-office:fetch-letter pb 1)
+    (test-err (net.post-office:fetch-letter pb 2))
+    (test-err (net.post-office:fetch-letter pb 3))
+    (net.post-office:fetch-letter pb 4)
     
-    (po:close-connection pb)
+    (net.post-office:close-connection pb)
     
-    (setq pb (po:make-pop-connection *test-machine*
+    (setq pb (net.post-office:make-pop-connection *test-machine*
 				    :user *test-account*
 				    :password *test-password*))
     
-    (test-eql 2 (and :fourth (po:mailbox-message-count pb)))
+    (test-eql 2 (and :fourth (net.post-office:mailbox-message-count pb)))
     
-    (po:fetch-letter pb 1) ; just make sure there's no error
+    (net.post-office:fetch-letter pb 1) ; just make sure there's no error
     
-    (po:top-lines pb 1 1)  ; just make sure there's no error
-    (po:make-envelope-from-text (po:top-lines pb 1 0))
+    (net.post-office:top-lines pb 1 1)  ; just make sure there's no error
+    (net.post-office:make-envelope-from-text (net.post-office:top-lines pb 1 0))
     
-    (po:close-connection pb)))
+    (net.post-office:close-connection pb)))
 
 	  
     
 (defun test-imap ()
-  (handler-bind ((po:po-condition 
+  (handler-bind ((net.post-office:po-condition 
 		  #'(lambda (con)
 		      (format t "Got imap condition: ~a~%" con))))
 				       

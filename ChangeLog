@@ -1,3 +1,9 @@
+2000-04-26  John Foderaro  <jkf@tiger.franz.com>
+
+	* package changed from post-office to net.post-office
+	  the po nickname was removed.
+	 
+
 2000-04-21  John Foderaro  <jkf@tiger.franz.com>
 versio 1.4
 	* imap.cl: added pop commands unique-id and top-lines

@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.10 2000/04/21 21:52:15 jkf Exp $
+;; $Id: imap.cl,v 1.11 2000/04/26 20:53:40 jkf Exp $
 
 ;; Description:
 ;;
@@ -29,8 +29,7 @@
 ;;-
 
 
-(defpackage :post-office
-  (:nicknames :po)
+(defpackage :net.post-office
   (:use :lisp :excl)
   (:export 
    #:address-name
@@ -91,11 +90,11 @@
    )
   )
 
-(in-package :post-office)
+(in-package :net.post-office)
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 4)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 5)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
