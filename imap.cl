@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.12 2000/04/26 21:33:40 jkf Exp $
+;; $Id: imap.cl,v 1.13 2000/06/06 15:46:16 jkf Exp $
 
 ;; Description:
 ;;
@@ -94,7 +94,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 5)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 6)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -1292,7 +1292,7 @@
 			  then (return :eof))
 		 
 		       (setq ch (char text next))
-		 
+		 (format t " state ~s  char ~s~%" state ch)
 		       (if* (eq ch #\return) 
 			  thenret  ; ignore return, (handle following linefeed)
 			  else (case state
@@ -1311,6 +1311,7 @@
 				 (2 ; looking for first non blank in value
 				  (if* (eq ch #\linefeed)
 				     then ; empty continuation line, ignore
+					  (incf next)
 					  (go again)
 				   elseif (not (member ch
 						       (member ch
@@ -1387,9 +1388,10 @@
   (multiple-value-bind (line count)
       (get-line-from-server mb)
     (if* *debug-imap* 
-       then (format t "from server: " count)
+       then (format t "from server: ")
 	    (dotimes (i count)(write-char (schar line i)))
-	    (terpri))
+	    (terpri)
+	    (force-output))
     
     (parse-imap-response line count)
     ))

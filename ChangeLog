@@ -1,3 +1,8 @@
+2000-06-06  John Foderaro  <jkf@tiger.franz.com>
+1.6
+	* imap.cl: fix header parsing bug where it go into a loop
+	  when encountering a blank header.
+
 Fri May 26 22:52:42 PST 2000  Duane Rettig  <duane@beta>
 
 	* makefile: set SHELL variable
