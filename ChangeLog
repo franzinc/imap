@@ -1,4 +1,11 @@
 *******************************************************************************
+Thu May 29 14:06:13 PDT 2003
+merge from trunk to acl62 branch
+command:
+../../join.sh trunk trunk_to_acl62_merge2 trunk_to_acl62_merge3 imap
+*******************************************************************************
+
+*******************************************************************************
 Fri Jan 10 08:18:09 PST 2003
 merge from trunk to acl62 branch
 command:
@@ -10,6 +17,11 @@ Mon Jun 17 12:42:56 PDT 2002
 merge from trunk to acl62 branch
 command: ../../join.sh trunk acl62 trunk_to_acl62_merge1 imap
 *******************************************************************************
+
+2003-05-07    <jkf@main.verada.com>
+imap v1.9
+>>>	* imap.cl: add reset-mailbox for pop maiboxes to send the RSET
+	        command
 
 2003-01-10  Kevin Layer  <layer@crikey>
 
