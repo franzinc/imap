@@ -1,3 +1,7 @@
+Fri May 26 22:52:42 PST 2000  Duane Rettig  <duane@beta>
+
+	* makefile: set SHELL variable
+
 2000-04-26  John Foderaro  <jkf@tiger.franz.com>
 
 	* package changed from post-office to net.post-office
