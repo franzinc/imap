@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.16.6.3 2001/10/22 16:29:16 layer Exp $
+;; $Id: imap.cl,v 1.16.6.4 2002/03/07 16:19:37 layer Exp $
 
 ;; Description:
 ;;
@@ -1321,6 +1321,10 @@
 				  (if* (eq ch #\linefeed)
 				     then ; empty continuation line, ignore
 					  (incf next)
+					  (if* header
+					     then ; header and no value
+						  (setq value "")
+						  (return :start))
 					  (go again)
 				   elseif (not (member ch
 						       (member ch
@@ -1332,6 +1336,7 @@
 				 (3 ; reading the header
 				  (if* (eq ch #\linefeed)
 				     then ; bogus header line, ignore
+					  (setq state 1)
 					  (go again)
 				   elseif (eq ch #\:)
 				     then (setq header

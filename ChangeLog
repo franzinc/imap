@@ -1,4 +1,9 @@
 *******************************************************************************
+merge from trunk to acl6 branch
+command: ../../join.sh trunk trunk_to_acl6_merge2 trunk_to_acl6_merge3 imap
+*******************************************************************************
+
+*******************************************************************************
 merge from acl61 to acl6 branch
 command: ../../join.sh acl61 acl61 acl61_to_acl6_merge1 imap
 *******************************************************************************
@@ -16,6 +21,14 @@ command: ../../join.sh acl61 acl61 acl61_to_acl6_merge1 imap
 merge from trunk to acl61 branch
 command: ../../join.sh trunk acl61 trunk_to_acl61_merge1 imap
 *******************************************************************************
+
+2001-08-10  John Foderaro  <jkf@tiger.franz.com>
+
+	* imap.cl - fix problems of too many #\returns in the header
+
+2002-02-11  John Foderaro  <jkf@tiger.franz.com>
+
+	* imap.cl: fix parse-mail-header to handle valueless header lines
 
 2001-08-10  John Foderaro  <jkf@tiger.franz.com>
 
