@@ -1,3 +1,8 @@
+2004-08-13  Kevin Layer  <layer@gemini>
+imap 1.13
+
+	* imap.cl: export mailbox-uidnext
+
 2003-10-28  Ahmon Dancy  <dancy@franz.com>
 imap 1.12
 	* imap.cl - add functions to allow letter data to be read

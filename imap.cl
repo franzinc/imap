@@ -20,7 +20,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.25 2004/01/16 19:31:52 layer Exp $
+;; $Id: imap.cl,v 1.25.26.1 2004/08/14 07:02:47 layer Exp $
 
 ;; Description:
 ;;
@@ -76,6 +76,7 @@
    #:mailbox-recent-messages ; ac
    #:mailbox-separator  ; accessor
    #:mailbox-uidvalidity
+   #:mailbox-uidnext
    #:make-imap-connection
    #:make-pop-connection
    #:with-imap-connection
@@ -102,7 +103,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 12)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 13)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
