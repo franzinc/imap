@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.21 2003/05/07 17:02:43 jkf Exp $
+;; $Id: imap.cl,v 1.22 2003/06/03 23:53:51 jkf Exp $
 
 ;; Description:
 ;;
@@ -96,7 +96,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 9)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 10)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -1331,6 +1331,7 @@
 					     then ; header and no value
 						  (setq value "")
 						  (return :start))
+					  (setq state 1)
 					  (go again)
 				   elseif (not (member ch
 						       (member ch

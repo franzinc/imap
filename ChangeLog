@@ -1,3 +1,8 @@
+2003-05-21  John Foderaro  <jkf@tiger.franz.com>
+imap 1.10
+	* imap.cl - fix bug in parse-mail header when end of headers
+	   continuation line containing spaces and tabs
+
 2003-05-07    <jkf@main.verada.com>
 imap v1.9
 >>>	* imap.cl: add reset-mailbox for pop maiboxes to send the RSET
