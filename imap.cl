@@ -19,7 +19,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: imap.cl,v 1.13 2000/06/06 15:46:16 jkf Exp $
+;; $Id: imap.cl,v 1.14 2000/06/06 15:53:07 jkf Exp $
 
 ;; Description:
 ;;
@@ -1292,7 +1292,6 @@
 			  then (return :eof))
 		 
 		       (setq ch (char text next))
-		 (format t " state ~s  char ~s~%" state ch)
 		       (if* (eq ch #\return) 
 			  thenret  ; ignore return, (handle following linefeed)
 			  else (case state
