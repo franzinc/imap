@@ -1,0 +1,53 @@
+ imap plan:
+
+flags:
+    system flags are described in the imap protocol as 
+words like: \Answered
+the backslash is annoying to type and I think that the 
+text is case insensitive anyway.
+we'll represent these flags by keywords (e.g :answered).
+
+
+    
+
+
+todo:
+    uid (modifier to copy fetch and store commands)
+    
+
+
+search sexpressions (things that can be passwd to the search-mailbox
+function).
+kwda - keywords that don't take any arguments
+kwdb - keywords that do take arguments
+
+
+ssexp :=  nil | ssexp1
+ssexp1 := kwda | (kwdb oprnd+) (and ssexp1*) | (or ssexp1*) | (not ssexp1)
+          | set 
+set := number-seq | ( number-seq+ )
+number-seq := integer | (:seq integer integer)
+kwda := :all | :answered ...
+kwdb := :bcc | :before ....
+oprnd := <the appropriate lisp object for the keyword>
+
+
+
+
+
+
+
+
+implemented:
+
+  connecting:
+    make-imap-connection    
+
+  after connecting:
+
+    fetch-letter
+    mailbox-list
+    noop
+    search-mailbox
+    select-mailbox
+    

@@ -1,0 +1,800 @@
+<html>
+
+<head>
+<title>Allegro CL imap interface</title>
+<meta name="GENERATOR" content="Microsoft FrontPage 3.0">
+</head>
+
+<body>
+
+<h1 align="center">Allegro CL imap interface</h1>
+
+<p align="left">copyright (c) 1999 Franz Inc.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong>imap</strong> is a client-server protocol for processing
+electronic mail boxes.&nbsp; <strong>imap </strong>is the successor to the <strong>pop</strong>
+protocol.&nbsp;&nbsp; It is not an upward compatible successor.</p>
+
+<p align="left">This document and interface is based on the Imap4rev1 protocol described
+in rfc2060.&nbsp;&nbsp; Where this document is describing the actions of the imap commands
+it should be considered a secondary source of information about those command and rfc2060
+should be considered the primary source.</p>
+
+<p align="left">The advantages of <strong>imap</strong> over <strong>pop</strong> are:</p>
+
+<ol>
+  <li><p align="left"><strong>imap </strong>can work with multiple mailboxes (<strong>pop </strong>works
+    with a single mailbox)</p>
+  </li>
+  <li><p align="left">With <strong>imap</strong> you're encouraged to leave mail in mailboxes
+    on the server machine, thus it can be read from any machine on the network. &nbsp;&nbsp;
+    With <strong>pop</strong> you're encouraged to download the mail to the client machine's
+    disk, and it thus becomes inaccessible to all other client machines.</p>
+  </li>
+  <li><p align="left"><strong>imap</strong> parses the headers of messages thus allowing
+    easier analysis of mail messages by the client program.</p>
+  </li>
+  <li><p align="left"><strong>imap</strong> supports searching messages for data and sorting
+    by date.</p>
+  </li>
+  <li><p align="left"><strong>imap </strong>supports annotating messages with flags, thus
+    making subsequent searching easier.</p>
+  </li>
+</ol>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Mailboxes</h1>
+
+<p align="left">Mailboxes are repositories for messages.&nbsp;&nbsp; Mailboxes are named
+by Lisp strings.&nbsp; The mailbox &quot;inbox&quot; always exists and it is the mailbox
+in which new messages are stored.&nbsp;&nbsp; New mailboxes can be created.
+&nbsp;&nbsp;&nbsp; They can have simple names, like &quot;foo&quot; or they can have
+hierarchical names (like &quot;clients/california/widgetco&quot;).&nbsp;&nbsp; After
+connecting to an imap server you can determine what string of characters you must use
+between simple names to create a hierarchical name (in this example &quot;/&quot; was the
+separator character). </p>
+
+<p align="left">Each mailbox has an associated unique number called its <strong>uidvalidity</strong>.
+&nbsp;&nbsp;&nbsp; This number won't change as long as only <strong>imap</strong> is the
+only program used to manipulate the mailbox.&nbsp;&nbsp; In fact if you see that the
+number has changed then that means that some other program has done something to the
+mailbox that destroyed the information that <strong>imap</strong> had been keeping about
+the mailbox.&nbsp;&nbsp;&nbsp; In particular you can't now retrieve messages by their
+unique ids that you had used before.</p>
+
+<h1 align="left">Messages</h1>
+
+<p align="left">Messages in a mailbox can be denoted in one of two ways:&nbsp; message
+sequence number or&nbsp; unique id.&nbsp;&nbsp; </p>
+
+<p align="left">The <em>message sequence number</em> is the normal way.&nbsp; The messages
+in a mailbox are numbered from 1 to N where N is the number of messages in the mailbox.
+&nbsp;&nbsp; There are never any gaps in the sequence numbers.&nbsp; If you tell <strong>imap</strong>
+to delete messages 3,4 and 5 then it will return a value telling you the it has deleted
+messages 3,3 and 3.&nbsp; This is because when you deleted message 3, message 4 became the
+new message 3 just before it was deleted and then message 5 became message 3 just before
+it was deleted.</p>
+
+<p align="left">A <em>unique id </em>of a message is a number associated with a message
+that is unique only within a mailbox.&nbsp;&nbsp; As long as the uidvalidity value of a
+mailbox doesn't change, the unique ids used in deleted messages will never be reused for
+new messages.&nbsp; </p>
+
+<h1 align="left">Flags</h1>
+
+<p align="left">A flag is a symbol denoting that a message or mailbox has a certain
+property.&nbsp;&nbsp; We use keywords in Lisp to denote flags.&nbsp;&nbsp; There are two
+kinds of flags - System and User flags.&nbsp; System flags begin with the backslash
+character, which is an unfortunate design decision&nbsp; since that means that in Lisp we
+have to remember to use two backslashes (e.g.&nbsp; <strong>:\\deleted</strong>).
+&nbsp;&nbsp; A subset of the flags can be stored permanently in the mailbox with the
+messages.&nbsp; When a connection is made to an <strong>imap</strong> server it will
+return the list of flags and permanent flags (and these are stored in the mailbox object
+returned for access by the program).&nbsp;&nbsp; If the list of permanent flags includes <strong>:\\*</strong>
+then the program can create its own flag names (not beginning with a backslash) and can
+store them permanently in messages.</p>
+
+<p align="left">Some of the important system flags are:</p>
+
+<ul>
+  <li><p align="left"><strong>:\\seen</strong> - this means that the message has been read
+    &nbsp; (a <strong>fetch-letter</strong> has been done that includes the content of the
+    message, not just its headers)</p>
+  </li>
+  <li><p align="left"><strong>:\\deleted </strong>- the message will be deleted the next time
+    an <strong>expunge-mailbox</strong> or <strong>close-mailbox</strong> is done.</p>
+  </li>
+  <li><p align="left"><strong>:\\recent </strong>- this is the first session to have been
+    notified about this message being present in the mailbox.</p>
+  </li>
+</ul>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Connecting to the server</h1>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New">(<strong>make-imap-connection host &amp;key user
+password port timeout)</strong></font></p>
+
+<p align="left">This creates a connection to the <strong>imap</strong> server on machine <strong>host</strong>
+and logs in as <strong>user </strong>with password <strong>password.&nbsp;&nbsp; </strong>The
+<strong>port</strong> argument defaults to143, which is the port on which the <strong>imap</strong>
+server normally listens.&nbsp;&nbsp;&nbsp; The <strong>timeout</strong> argument defaults
+to 30 (seconds) and this value is used to limit the amount of time this imap interface
+code will wait for a response from the server before giving up.&nbsp;&nbsp;&nbsp; In
+certain circumstances the server may get so busy that you see timeout errors signaled in
+this code.&nbsp; In that case you should specify a larger timeout when connecting. </p>
+
+<p align="left">The <strong>make-imap-connection</strong> function returns a <strong>mailbox</strong>
+object which is then passed to other functions in this interface.&nbsp;&nbsp; From this
+one connection you can access all of the mailboxes owned by <strong>user</strong>.</p>
+
+<p align="left">After&nbsp; the connection is&nbsp; established a mailbox is <strong>not</strong>
+selected.&nbsp;&nbsp; In this state attempting to execute message access functions may
+result in cryptic error messages from the <strong>imap</strong> server that won't tell you
+what you need to know -- that a mailbox is not selected.&nbsp;&nbsp; Therefore be sure to
+select a mailbox using <strong>select-mailbox</strong> shortly after connecting.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong><font face="Courier New">(close-imap-connection mailbox)</font></strong></p>
+
+<p align="left">This sends a <strong>logout</strong> command to the <strong>imap</strong>
+server and then closes the socket that's communicating with the <strong>imap</strong>
+server.&nbsp;&nbsp;&nbsp; <strong>mailbox </strong>is the object returned by <strong>make-imap-connection.</strong>
+&nbsp;&nbsp; This does <em>not</em> close the currently select mailbox before logging out,
+thus messages marked to be deleted in the currently selected mailbox will <em>not</em> be
+removed from the&nbsp; mailbox.&nbsp; Use <strong>close-mailbox</strong> or <strong>expunge-mailbox</strong>
+before calling this <strong>close-imap-connection</strong> to ensure that messages to be
+deleted are deleted.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Mailbox manipulation</h1>
+
+<p align="left">These functions work on mailboxes as a whole.&nbsp;&nbsp;&nbsp; The <strong>mailbox</strong>
+argument to the functions is is the object returned by <strong>make-imap-connection.
+&nbsp; </strong>If a return value isn't specified for a function then the return value
+isn't important - if something goes wrong an error will be signaled.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(select-mailbox mailbox name)</strong></font></p>
+
+<p align="left">makes the mailbox named by the string <strong>name</strong> be the current
+mailbox and store statistics about that mailbox in the <strong>mailbox</strong> object
+where they can be retrieved by the accessors described below.&nbsp;&nbsp;&nbsp;&nbsp; The
+selected mailbox is the source for all message manipulation functions.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(create-mailbox mailbox name)</strong></font></p>
+
+<p align="left">creates a new mailbox with the given <strong>name</strong>.&nbsp;&nbsp; It
+is an error if the mailbox already exists.&nbsp; If you want to create a mailbox in a
+hierarchy then you should be sure that it uses the correct hierarchy separator character
+string (see <strong>mailbox-separator)</strong>.&nbsp;&nbsp; You do <strong>not</strong>
+&nbsp; have to create intermediate levels of the hierarchy yourself -- just provide the
+complete name and the <strong>imap</strong> server will create all necessary levels.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(delete-mailbox mailbox name)</strong></font></p>
+
+<p align="left">deletes the mailbox with the given name.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(rename-mailbox mailbox&nbsp; old-name
+new-name)</strong></font></p>
+
+<p align="left">changes the name of mailbox <strong>old-name</strong> to <strong>new-name</strong>.
+&nbsp; It's an error if <strong>new-name</strong> already exists.&nbsp; There's a special
+behavior if <strong>old-name</strong> is &quot;inbox&quot;.&nbsp; In this case all of the
+messages in &quot;inbox&quot; are moved to <strong>new-name </strong>mailbox, but the
+&quot;inbox&quot; mailbox continues to exist.&nbsp;&nbsp; Note: The <strong>imap </strong>server
+supplied with Linux does <strong>not</strong> support this special behavior of renaming
+&quot;inbox&quot;.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong><font face="Courier New">(mailbox-list mailbox &amp;key reference
+pattern)</font></strong></p>
+
+<p align="left">returns a list of items describing the mailboxes that match the arguments.
+&nbsp;&nbsp;&nbsp;&nbsp; The <strong>reference</strong> is the root of the hierarchy to
+scan.&nbsp; By default is is the empty string (from which all mailboxes are reachable).
+&nbsp;&nbsp;&nbsp; The <strong>pattern </strong>is a string matched against all mailbox
+names reachable from <strong>reference. </strong>There are two special characters allowed
+in the <strong>pattern:&nbsp; </strong>Asterisk (*) matches all characters including
+hierarchy delimiters.&nbsp;&nbsp; Percent (%) matches all characters but not the hierarchy
+delimiter.&nbsp; Thus</p>
+
+<p align="center"><font face="Courier New">(mailbox-list mailbox :pattern &quot;*&quot;)</font></p>
+
+<p align="left">returns a list of all mailboxes at all depths in the hierarchy.
+&nbsp;&nbsp; </p>
+
+<p align="left">The value returned is a list of lists, but we've created the <strong>mailbox-list
+</strong>struct definition in order to make accessing the parts of the inner lists &nbsp;
+easier.&nbsp;&nbsp; The accessors for that structure are:</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-list-flags mailbox-list)&nbsp; </strong></font></p>
+
+<p align="left">returns the flags describing this entry.&nbsp;&nbsp; The most important
+flag to check is <strong>:\\noselect</strong> as this specifies that this is not a mailbox
+but instead just a directory in the hierarchy of mailboxes.&nbsp;&nbsp; The flag <strong>:\\noinferiors</strong>
+specifies that you can't create a hierarchical mailbox name with this as a prefix.
+&nbsp;&nbsp; This flag is often associated with the special mailbox &quot;inbox&quot;.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-list-separator mailbox-list)</strong></font></p>
+
+<p align="left">returns a string containing the characters used to separate names in a
+hierarchical name.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-list-name mailbox-list)</strong></font></p>
+
+<p align="left">returns the name of the mailbox or directory (see mailbox-list-flags to
+determine which it is).</p>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Message manipulation</h1>
+
+<p align="left">These functions work with the messages in the currently selected mailbox.
+&nbsp;&nbsp;&nbsp; The <strong>mailbox</strong> argument is the object returned by <strong>make-imap-connection.</strong>
+&nbsp; The <strong>messages</strong> argument is either a number (denoting a single
+message), or is the list <strong>(:seq N M) </strong>denoting messages <strong>N</strong>
+through <strong>M, </strong>or is a list of numbers and <strong>:seq </strong>forms
+denoting the messages specified in the list.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">(<font face="Courier New"><strong>alter-flags mailbox messages &amp;key
+flags add-flags remove-flags silent uid)</strong></font></p>
+
+<p>changes the flags of the messages in the specified way.&nbsp; Exactly one of&nbsp; <strong>flags,
+add-flags</strong>, and <strong>remove-flags</strong> must&nbsp; be specified.&nbsp; <strong>flags</strong>
+specifies the complete set of flags to be stores in the <strong>messages</strong> and the
+other two add or remove flags.&nbsp;&nbsp; If <strong>uid</strong> is true then <strong>messages</strong>
+will be interpreted as unique ids rather than message sequence numbers.
+&nbsp;&nbsp;&nbsp;&nbsp; Normally <strong>alter-flags</strong> returns a data structure
+that describes the state of the flags after the alternation has been done.&nbsp; This data
+structure can be examined&nbsp; with the <strong>fetch-field</strong> function.
+&nbsp;&nbsp; If <strong>silent</strong> is true then this data structure won't be created
+thus saving some time and space.</p>
+
+<p>Removing a message from a mailbox is done by adding the <strong>:\\deleted</strong>
+flag to the message and then either calling <strong>close-mailbox </strong>or <strong>expunge-mailbox.</strong></p>
+
+<p>&nbsp;</p>
+
+<p><font face="Courier New"><strong>(close-mailbox mailbox)</strong></font></p>
+
+<p>permanently removes all messages flagged as <strong>:\\deleted</strong> from the
+currently selected mailbox and then un-selects the currently selected mailbox.&nbsp; After
+this command has finished there is no currently selected mailbox.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(delete-letter mailbox messages &amp;key
+expunge uid</strong></font>)</p>
+
+<p align="left">Mark the <strong>messages</strong> for deletion and then remove them
+permanently (using <strong>expunge-mailbox</strong>) if <strong>expunge</strong> is true.
+&nbsp;&nbsp; <strong>expunge </strong>defaults to true.&nbsp;&nbsp;&nbsp; If <strong>uid</strong>
+is true then the message numbers are unique ids instead of messages sequence numbers.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(expunge-mailbox mailbox)</strong></font></p>
+
+<p align="left">permanently removes all messages flagged as <strong>:\\deleted</strong>
+from the currently selected mailbox.&nbsp;&nbsp; The currently selected mailbox stays
+selected.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(fetch-field message part info &amp;key
+uid)</strong></font></p>
+
+<p align="left">is used to extract the desired information from the value returned by <strong>fetch-letter</strong>.
+&nbsp;&nbsp;&nbsp; With <strong>fetch-letter</strong> you can retrieve a variety of
+information about one or more messages and <strong>fetch-field</strong> can search though
+that information and return a&nbsp; particular piece of information about a particular
+letter.&nbsp;&nbsp; <strong>message</strong> is the message number (it's assumed to be a
+message sequence number unless <strong>uid </strong>is true, in which case it's a unique
+id).&nbsp;&nbsp; <strong>part </strong>is the type of information desired.&nbsp; It is a
+string just as used in the call to <strong>fetch-letter</strong>.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(fetch-letter mailbox messages parts
+&amp;key uid)</strong></font></p>
+
+<p align="left">retrieves the specified <strong>parts</strong> of the specified <strong>messages.
+&nbsp;&nbsp; </strong>If <strong>uid</strong> is true then the <strong>messages</strong>
+are considered to be unique ids rather than message sequence numbers.
+&nbsp;&nbsp;&nbsp;&nbsp; The description of what can be specified for <strong>parts </strong>is
+quite complex and has been moved to the section below &quot;Fetching a Letter&quot;.</p>
+
+<p align="left">The return value from this function is a structure that can be examined
+with <strong>fetch-field</strong>.</p>
+
+<p align="left">When the result returned includes an envelope value the following
+functions can be used to extract&nbsp; the parts of the envelope:</p>
+
+<ul>
+  <li><p align="left"><font face="Courier New"><strong>envelope-date</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-subject</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-from</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-sender</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-reply-to</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-to</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-cc</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-bcc</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-in-reply-to</strong></font></p>
+  </li>
+  <li><p align="left"><font face="Courier New"><strong>envelope-message-id</strong></font></p>
+  </li>
+</ul>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong><font face="Courier New">(noop mailbox)</font></strong></p>
+
+<p align="left">does nothing but&nbsp; remind the <strong>imap</strong> server that this
+client is still active, thus resetting the timers used in the server that will
+automatically shut down this connection after a period of inactivity.&nbsp;&nbsp; Like all
+other commands if messages have been added to the currently selected mailbox, the server
+will return the new message count as a response to the <strong>noop</strong> command, and
+this can be check using <strong>mailbox-message-count</strong>.&nbsp;&nbsp;&nbsp; </p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(search-mailbox search-expression
+&amp;key uid)</strong></font></p>
+
+<p align="left">return a list of messages in the mailbox that satisfy the<strong>
+search-expression.&nbsp;&nbsp; </strong>If <strong>uid</strong> is true then unique ids
+will be returned instead of message sequence numbers.&nbsp; See the section
+&quot;Searching for messages&quot; for details on the <strong>search-expression</strong>.</p>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Mailbox Accessors</h1>
+
+<p align="left">The mailbox object contains information about the <strong>imap </strong>server
+it's connected to as well as the currently selected mailbox.&nbsp;&nbsp; This information
+can potentially be updated each time a request is made to the <strong>imap </strong>server.
+&nbsp;&nbsp; The following functions access values from the mailbox object. </p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-flags mailbox)</strong></font></p>
+
+<p align="left">returns a complete list of flags used in all the messages in this mailbox.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-permanent-flags mailbox)</strong></font></p>
+
+<p align="left">returns a list of flags that can be stored permanently in a message.
+&nbsp; If the flag <strong>:\\*</strong> is present then it means that the client can
+create its own flags.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-message-count mailbox)</strong></font></p>
+
+<p align="left">returns the number of messages in the currently selected mailbox</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-recent-messages mailbox)</strong></font></p>
+
+<p align="left">returns the number of messages have just arrived in the mailbox.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-separator mailbox)</strong></font></p>
+
+<p align="left">returns the hierarchy separator string for this <strong>imap </strong>server.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-uidnext mailbox)</strong></font></p>
+
+<p align="left">returns the value predicated to be the&nbsp; unique id assigned to the
+next message.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><font face="Courier New"><strong>(mailbox-uidvalidty mailbox)</strong></font></p>
+
+<p align="left">returns the uidvalidity value for the currently selected mailbox.</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Fetching a Letter</h1>
+
+<p align="left">When using <strong>fetch-letter</strong> to access letters, you must
+specify the parts of the messages in which you're interested.&nbsp;&nbsp; There are a wide
+variety of specifiers, some redundant and overlapping, described in the imap specification
+in rfe2060.&nbsp; We'll describe the most common ones here.&nbsp;&nbsp; The specification
+is always a string but it may be specify more than one thing by the use of parentheses in
+the string, e.g. &quot;(flags envelope)&quot;.&nbsp;&nbsp; </p>
+
+<p align="left">The most common specifiers are:</p>
+
+<ul>
+  <li><p align="left"><strong>body[]</strong> - this returns the full message: headers and
+    body.</p>
+  </li>
+  <li><p align="left"><strong>body[text]</strong> - this returns just the the text of the body
+    of the message, not the header.</p>
+  </li>
+  <li><p align="left"><strong>body</strong> - this returns a list describing the structure of
+    the message.</p>
+  </li>
+  <li><p align="left"><strong>envelope</strong> - this parses the header and returns a list of
+    information in it.&nbsp;&nbsp; We've defined a set of accessors <strong>(</strong>like<strong>
+    envelope-xxx</strong>) that allow you to retrieve the envelope information easily.</p>
+  </li>
+  <li><p align="left"><strong>flags</strong> - return a list of the flags in the message</p>
+  </li>
+  <li><p align="left"><strong>uid</strong> - the unique identifier of the message</p>
+  </li>
+</ul>
+
+<p align="left">&nbsp;</p>
+
+<p align="left">The result of a <strong>fetch-letter</strong> is a data structure
+containing all of the requested information.&nbsp;&nbsp; The <strong>fetch-field</strong>
+function is then used to extract the particular information for the particular message.</p>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Searching for Messages</h1>
+
+<p align="left">.The <strong>imap</strong> server is able to search for messages matching
+a search expression.&nbsp;&nbsp;&nbsp;&nbsp; A search-expression is a predicate or one of
+these forms:</p>
+
+<ul>
+  <li><p align="left">(<strong>and</strong> search-expression ...)</p>
+  </li>
+  <li><p align="left">(<strong>or</strong>&nbsp; search-expression ...)</p>
+  </li>
+  <li><p align="left">(<strong>not</strong> search-expression)</p>
+  </li>
+</ul>
+
+<p align="left">A predicate is </p>
+
+<ul>
+  <li><p align="left">a number in which case the predicate is true if and only if we're are
+    considering this message</p>
+  </li>
+  <li><p align="left">a <strong>(:seq N M)</strong> expression that is true if we're
+    considering messages N through M.</p>
+  </li>
+  <li><p align="left"><strong>:all</strong> - this predicate is always true</p>
+  </li>
+  <li><p align="left"><strong>:answered</strong> - true if the message has the <strong>:\\answered</strong>
+    flag</p>
+  </li>
+  <li><p align="left"><strong>(:bcc &quot;string&quot;) </strong>- true if the envelope
+    structure's bcc field contains this &quot;string&quot;.</p>
+  </li>
+  <li><p align="left"><strong>(:before date)</strong> - true if the messages internal date is
+    before this date.&nbsp; The date can either be a string in the rfc822 form (e.g.
+    &quot;7-Mar-1999&quot;) or a lisp universal time.</p>
+  </li>
+  <li><p align="left"><strong>(:body &quot;string&quot;) </strong>- true if the body of the
+    message contains &quot;string&quot;</p>
+  </li>
+  <li><p align="left"><strong>(:cc &quot;string&quot;)</strong> -&nbsp; true if the envelope
+    structure's cc field contains this &quot;string&quot;.</p>
+  </li>
+  <li><p align="left"><strong>:deleted</strong> - true if the <strong>:\\deleted</strong> flag
+    is set for this message</p>
+  </li>
+  <li><p align="left"><strong>:draft</strong> - true if the <strong>:\\draft </strong>flag is
+    set for this message</p>
+  </li>
+  <li><p align="left"><strong>:flagged </strong>- true if the <strong>:\\flagged</strong> flag
+    is set for this message</p>
+  </li>
+  <li><p align="left"><strong>(:from &quot;string&quot;)</strong> -&nbsp; true if the envelope
+    structure's from&nbsp; field contains this &quot;string&quot;.</p>
+  </li>
+  <li><p align="left"><strong>(:header &quot;field&quot; &quot;string&quot;)</strong> - true
+    if the message contains a header named &quot;field&quot; and its value contains
+    &quot;string&quot;.</p>
+  </li>
+  <li><p align="left"><strong>(:keyword flag)</strong> - true if the specified flag is set for
+    this message</p>
+  </li>
+  <li><p align="left"><strong>(:larger N)</strong> - true if the rfc822 size of the message is
+    larger than N.</p>
+  </li>
+  <li><p align="left"><strong>:new </strong>- true if the message has the <strong>:\\recent</strong>
+    flag set but not the <strong>:\\seen </strong>flag.</p>
+  </li>
+  <li><p align="left"><strong>:seen </strong>- true if the message has the <strong>:\\seen </strong>flag
+    set.</p>
+  </li>
+  <li><p align="left"><strong>(:sentbefore date)</strong> - true if the message's Date header
+    is earlier than the given date.&nbsp; See the description of :before for the format of
+    dates.</p>
+  </li>
+  <li><p align="left"><strong>(:senton date)</strong> - true if the message's Date header is
+    within the specified date.</p>
+  </li>
+  <li><p align="left"><strong>(:sentsince date) </strong>- true if the message's Date header
+    is within or since the given date.</p>
+  </li>
+  <li><p align="left"><strong>(:smaller N)</strong> - true if the rfc822 size of the message
+    is smaller than N</p>
+  </li>
+  <li><p align="left"><strong>(:subject &quot;string&quot;) </strong>- true if the Subject
+    header line of the message contains &quot;string&quot;</p>
+  </li>
+  <li><p align="left"><strong>(:text &quot;string&quot;) </strong>- true if the message's
+    header or body contains the specified &quot;string&quot;</p>
+  </li>
+  <li><p align="left"><strong>(:to &quot;string&quot;)</strong> - true if the envelope
+    structure's to field contains this &quot;string&quot;.</p>
+  </li>
+  <li><p align="left"><strong>(:uid message-set)</strong> - true if the message is one of the
+    message denoted by the message set, where the message set describes messages by unique id.</p>
+  </li>
+  <li><p align="left"><strong>:unanswered</strong> - true if the message does not have the <strong>:\\answered</strong>
+    flag set</p>
+  </li>
+  <li><p align="left"><strong>:undeleted</strong> - true if the message does not have the <strong>:\\deleted</strong>
+    flag set</p>
+  </li>
+  <li><p align="left"><strong>:undraft </strong>- true if the message does not have the <strong>:\\draft
+    </strong>flag set.</p>
+  </li>
+  <li><p align="left"><strong>:unflagged </strong>- true if the message does not have the <strong>:\\flagged</strong>
+    flag set.</p>
+  </li>
+  <li><p align="left"><strong>(:unkeyword flag)</strong> - true if the message does not have
+    the specified flag set.</p>
+  </li>
+  <li><p align="left"><strong>:unseen </strong>- true if the message does not have the <strong>:\\seen
+    </strong>flag set.</p>
+  </li>
+</ul>
+
+<p align="left">&nbsp;</p>
+
+<h1 align="left">Examples</h1>
+
+<p align="left">We show an example of using this interface</p>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong>Connect to the imap server on the machine holding the email:</strong></p>
+<div align="left">
+
+<pre>user(2): (setq mb (mb:make-imap-connection &quot;mailmachine.franz.com&quot; 
+                            :user &quot;myacct&quot; 
+                            :password &quot;mypasswd&quot;))
+#&lt;mailbox::imap-mailbox @ #x2064ca4a&gt;</pre>
+</div>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong>Select the inbox, that's where the incoming mail arrives:</strong></p>
+<div align="left">
+
+<pre>
+user(3): (mb:select-mailbox mb &quot;inbox&quot;)
+t</pre>
+</div>
+
+<p align="left">&nbsp;</p>
+
+<p align="left"><strong>Check how many messages are in the mailbox:</strong></p>
+<div align="left">
+
+<pre>
+user(4): (mb:mailbox-message-count mb)
+7</pre>
+</div>
+
+<p align="left"><strong>There are seven messages at the moment.&nbsp;&nbsp; Fetch the
+whole 4th message</strong></p>
+<div align="left">
+
+<pre>
+user(5): (setq body (mb:fetch-letter mb 4 &quot;body[]&quot;))
+((4
+(&quot;BODY[]&quot; &quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
+Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
+    by tiger.franz.com (8.8.7/8.8.7) with SMTP id LAA20261
+    for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 11:36:26 -0700
+Date: Mon, 13 Sep 1999 11:36:26 -0700
+From: jkf mail tester &lt;jkfmail@tiger.franz.com&gt;
+Message-Id: &lt;199909131836.LAA20261@tiger.franz.com&gt;
+
+message number 5
+&quot;)))</pre>
+</div>
+
+<p align="left"><strong>The value was returned inside a data structure designed to hold
+information about one or more messages.&nbsp;&nbsp; In order to extract the particular
+information we want we use fetch-field:</strong></p>
+<div align="left">
+
+<pre>
+user(6): (mb:fetch-field 4 &quot;body[]&quot; body)
+&quot;Return-Path: &lt;jkfmail@tiger.franz.com&gt;
+Received: from tiger.franz.com (jkf@tiger [192.132.95.103])
+&nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with SMTP id LAA20261
+&nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 11:36:26 -0700
+Date: Mon, 13 Sep 1999 11:36:26 -0700
+From: jkf mail tester &lt;jkfmail@tiger.franz.com&gt;
+Message-Id: &lt;199909131836.LAA20261@tiger.franz.com&gt;
+
+message number 5
+&quot;</pre>
+</div>
+
+<p align="left"><strong>We use the search function to find all the messages containing the
+word blitzfig.&nbsp; It turns out there is only one.&nbsp; We then extract the contents of
+that message.</strong></p>
+<div align="left">
+
+<pre>
+user(7): (mb:search-mailbox mb '(:text &quot;blitzfig&quot;))
+(7)
+user(8): (mb:fetch-field 7 &quot;body[]&quot; (mb:fetch-letter mb 7 &quot;body[]&quot;))
+&quot;Return-Path: &lt;jkf@verada.com&gt;
+Received: from main.verada.com (main.verada.com [208.164.216.3])
+&nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
+&nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:37:24 -0700
+Received: from main.verada.com (IDENT:jkf@localhost [127.0.0.1])
+&nbsp;&nbsp;&nbsp; by main.verada.com (8.9.3/8.9.3) with ESMTP id NAA06121
+&nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:36:54 -0700
+Message-Id: &lt;199909132036.NAA06121@main.verada.com&gt;
+To: jkfmail@tiger.franz.com
+Subject: s test
+Date: Mon, 13 Sep 1999 13:36:54 -0700
+From: jkf &lt;jkf@verada.com&gt;
+
+secret word: blitzfig
+ok?
+&quot;</pre>
+</div>
+
+<p align="left"><strong>We've been using message sequence numbers up to now.
+&nbsp;&nbsp; The are the simplest to use but if you're concerned with keeping track of
+messages when deletions are being done then using unique id's is useful.&nbsp;&nbsp; Here
+we do the above search example using uids:</strong></p>
+<div align="left">
+
+<pre>
+user(9): (mb:search-mailbox mb '(:text &quot;blitzfig&quot;) :uid t)
+(68)
+user(10): (mb:fetch-field 68 &quot;body[]&quot; (mb:fetch-letter mb 68 &quot;body[]&quot; :uid t) :uid t)
+&quot;Return-Path: &lt;jkf@verada.com&gt;
+Received: from main.verada.com (main.verada.com [208.164.216.3])
+&nbsp;&nbsp;&nbsp; by tiger.franz.com (8.8.7/8.8.7) with ESMTP id NAA20541
+&nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:37:24 -0700
+Received: from main.verada.com (IDENT:jkf@localhost [127.0.0.1])
+&nbsp;&nbsp;&nbsp; by main.verada.com (8.9.3/8.9.3) with ESMTP id NAA06121
+&nbsp;&nbsp;&nbsp; for &lt;jkfmail@tiger.franz.com&gt;; Mon, 13 Sep 1999 13:36:54 -0700
+Message-Id: &lt;199909132036.NAA06121@main.verada.com&gt;
+To: jkfmail@tiger.franz.com
+Subject: s test
+Date: Mon, 13 Sep 1999 13:36:54 -0700
+From: jkf &lt;jkf@verada.com&gt;
+
+secret word: blitzfig
+ok?
+&quot;</pre>
+</div>
+
+<p align="left"><strong>We'll delete that letter with the secret word and then note that
+we have only six messages in the mailbox.</strong></p>
+<div align="left">
+
+<pre>
+user(11): (mb:delete-letter mb 68 :uid t)
+(7)
+user(12): (mb:mailbox-message-count mb)
+6</pre>
+</div>
+
+<p align="left"><strong>Now we assume that a bit of time has passed and we want to see if
+any new messages have been delivered into the mailbox.&nbsp;&nbsp; In order to find out we
+have to send a command to the imap server since it will only notify us of new messages
+when it responds to a command.&nbsp;&nbsp; Since we have nothing to ask the imap server to
+do we issue the noop command, which does nothing on the server.</strong></p>
+<div align="left">
+
+<pre>
+user(13): (mb:noop mb)
+nil
+user(14): (mb:mailbox-message-count mb)
+7</pre>
+</div>
+
+<p align="left"><strong>The server told us that there are now 7 messages in the inbox, one
+more than before.&nbsp; Next we create a new mailbox, copy the messages from the inbox to
+the new mailbox and then delete them from the inbox.&nbsp; Note how we use the :seq form
+to specify a sequence of messages.</strong></p>
+<div align="left">
+
+<pre>
+user(15): (mb:create-mailbox mb &quot;tempbox&quot;)
+t
+user(18): (let ((count (mb:mailbox-message-count mb)))
+(mb:copy-to-mailbox mb `(:seq 1 ,count) &quot;tempbox&quot;)
+(mb:delete-letter mb `(:seq 1 ,count)))
+(1 1 1 1 1 1 1)
+user(19): (mb:mailbox-message-count mb)
+0</pre>
+</div>
+
+<p align="left"><strong>When we're done there are 0 messages in the currently selected
+mailbox, which is inbox.&nbsp; We now select the maibox we just created and see that the
+messages are there.</strong></p>
+<div align="left">
+
+<pre>
+user(22): (mb:select-mailbox mb &quot;tempbox&quot;)
+t
+user(23): (mb:mailbox-message-count mb)
+7</pre>
+</div>
+
+<p align="left"><strong>Finally we shut down the connection.&nbsp;&nbsp; Note that imap
+servers will automatically shut down a connection that's been idle for too long (usually
+around 10 minutes).&nbsp; When that happens, the next time the client tries to use an imap
+function to access the mailbox an error will occur.&nbsp;&nbsp; There is nothing that can
+be done to revive the connection however it is important to call close-imap-connection on
+the lisp side in order to free up the resources still in use for the now dead connection.</strong></p>
+<div align="left">
+
+<pre>
+user(24): (mb:close-imap-connection mb)
+t
+</pre>
+</div>
+
+<p align="left">&nbsp;</p>
+
+<p>&nbsp;</p>
+</body>
+</html>
