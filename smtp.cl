@@ -24,7 +24,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.8.26.1 2004/09/25 14:20:41 layer Exp $
+;; $Id: smtp.cl,v 1.8.26.2 2005/07/20 19:41:04 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -540,7 +540,8 @@
        then ipaddr
        else ; do mx lookup if acldns is being used
 	    (if* (or (eq socket:*dns-mode* :acldns)
-		     (member :acldns socket:*dns-mode* :test #'eq))
+		     (and (consp socket:*dns-mode*)
+			  (member :acldns socket:*dns-mode* :test #'eq)))
 	       then (let ((res (socket:dns-query name :type :mx)))
 		      (if* (and (consp res) (cadr res))
 			 then (cadr res) ; the ip address
