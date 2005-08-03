@@ -1,3 +1,18 @@
+2005-02-15  Kevin Layer  <layer@gemini>
+
+	* smtp.cl: bug15190: from jkf: fix nameserver lookup if *dns-mode*
+	  is just :clib
+
+2004-09-28  Kevin Layer  <layer@gemini>
+
+	* imap.cl: fix copyright notice
+
+2004-09-14  Kevin Layer  <layer@gemini>
+
+	* smtp.cl:
+	- add new exported `send-smtp-auth' (from dancy)
+	- add `login' and `password' keywords to send-letter
+
 2004-08-13  Kevin Layer  <layer@gemini>
 imap 1.13
 

@@ -24,7 +24,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.8 2004/01/16 19:31:52 layer Exp $
+;; $Id: smtp.cl,v 1.9 2005/08/03 05:17:29 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -39,10 +39,13 @@
   (:export 
    #:send-letter
    #:send-smtp
+   #:send-smtp-auth
    #:test-email-address))
 
 (in-package :net.post-office)
 
+(eval-when (compile load eval)
+  (require :sasl))
 
 ;; the exported functions:
 
@@ -109,7 +112,8 @@
 
 
 (defun send-letter (server from to message
-		    &key cc bcc subject reply-to headers)
+		    &key cc bcc subject reply-to headers
+			 login password)
   ;;
   ;; see documentation at the head of this file
   ;;
@@ -159,15 +163,19 @@
     
     (format header "~c~c" #\return #\linefeed)
     
-    (send-smtp server from (append tos ccs bccs)
+    (send-smtp-auth server from (append tos ccs bccs)
+	       login password
 	       (get-output-stream-string header)
 	       message)))
     
     
+(defun send-smtp(server from to &rest messages)
+  (send-smtp-1 server from to nil nil messages))
 	  
+(defun send-smtp-auth (server from to login password &rest messages)
+  (send-smtp-1 server from to login password messages))
 		    
-
-(defun send-smtp (server from to &rest messages)
+(defun send-smtp-1 (server from to login password messages)
   ;; send the effective concatenation of the messages via
   ;; smtp to the mail server
   ;; Each message should be a string
@@ -176,7 +184,7 @@
   ;; each string should be in the official rfc822 format  "foo@bar.com"
   ;;
 
-  (let ((sock (connect-to-mail-server server)))
+  (let ((sock (connect-to-mail-server server login password)))
   
     (unwind-protect
 	(progn
@@ -245,7 +253,7 @@
 	    (t (error "quit failed: ~s" msg))))
       (close sock))))
 
-(defun connect-to-mail-server (server)
+(defun connect-to-mail-server (server login password)
   ;; make that initial connection to the mail server
   ;; returning a socket connected to it and 
   ;; signaling an error if it can't be made.
@@ -273,11 +281,10 @@
 	       then (setq hostname
 		      (format nil "[~a]" (socket:ipaddr-to-dotted
 					  (socket:local-host sock)))))
-	    (smtp-command sock "HELO ~a" hostname)
-	    (response-case (sock msg)
-	      (2 ;; ok
-	       nil)
-	      (t (error "hello greeting failed: ~s" msg))))
+	    (let ((mechs (smtp-ehlo sock hostname)))
+	      (if (and mechs login password)
+		  (setf sock 
+		    (smtp-authenticate sock server mechs login password)))))
 	  
 	  ; all is good
 	  (setq ok t))
@@ -291,6 +298,61 @@
     sock
     ))
 	    
+
+;; Returns string with mechanisms, or nil if none.
+;; This may need to be expanded in the future as we support
+;; more of the features that EHLO responds with.
+(defun smtp-ehlo (sock our-name)
+  (smtp-command sock "EHLO ~A" our-name)
+  (response-case (sock msg)
+    (2 ;; ok
+     ;; Collect the auth mechanisms.
+     (multiple-value-bind (found whole mechs)
+	 (match-regexp "250[- ]AUTH \\(.*\\)" msg)
+       (declare (ignore whole))
+       (if found
+	   mechs)))
+    (t
+     (smtp-command sock "HELO ~A" our-name)
+     (response-case (sock msg)
+       (2 ;; ok
+	nil)
+       (t (error "hello greeting failed: ~s" msg))))))
+
+(defun smtp-authenticate (sock server mechs login password)
+  (let ((ctx (net.sasl:sasl-client-new "smtp" server
+				       :user login
+				       :pass password)))
+    (multiple-value-bind (res selected-mech response)
+	(net.sasl:sasl-client-start ctx mechs)
+      (if (not (eq res :continue))
+	  (error "sasl-client-start unexpectedly returned: ~s" res))
+      (smtp-command sock "AUTH ~a" selected-mech)
+      (loop
+	(response-case (sock msg)
+	  (3  ;; need more interaction
+	   (multiple-value-setq (res response)
+	     (net.sasl:sasl-step 
+	      ctx 
+	      (base64-string-to-usb8-array (subseq msg 4))))
+	   (smtp-command sock "~a" 
+			 (usb8-array-to-base64-string response nil)))
+	  (2 ;; server is satisfied.
+	   ;; Make sure the auth process really completed
+	   (if (not (net.sasl:sasl-conn-auth-complete-p ctx))
+	       (error "SMTP server indicated authentication complete  before mechanisms was satisfied"))
+	   ;; It's all good.  
+	   (return)) ;; break from loop
+	  (t
+	   (error "SMTP authentication failed")))))
+    
+    ;; Reach here if authentication completed.
+    ;; If a security layer was negotiated, return an encapsulated sock,
+    ;; otherwise just return the original sock.
+    (if (net.sasl:sasl-conn-security-layer-p ctx)
+	(net.sasl:sasl-make-stream ctx sock :close-base t)
+      sock)))
+  
 
   
 (defun test-email-address (address)
@@ -314,7 +376,7 @@
 	 else (setq name (subseq address 0 pos)
 		    hostname (subseq address (1+ pos)))))
   
-    (let ((sock (ignore-errors (connect-to-mail-server hostname))))
+    (let ((sock (ignore-errors (connect-to-mail-server hostname nil nil))))
       (if* (null sock) then (return-from test-email-address nil))
     
       (unwind-protect
@@ -478,7 +540,8 @@
        then ipaddr
        else ; do mx lookup if acldns is being used
 	    (if* (or (eq socket:*dns-mode* :acldns)
-		     (member :acldns socket:*dns-mode* :test #'eq))
+		     (and (consp socket:*dns-mode*)
+			  (member :acldns socket:*dns-mode* :test #'eq)))
 	       then (let ((res (socket:dns-query name :type :mx)))
 		      (if* (and (consp res) (cadr res))
 			 then (cadr res) ; the ip address
