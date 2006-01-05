@@ -1,3 +1,9 @@
+#+(version= 7 0)
+(sys:defpatch "smtp" 1
+  "fix nameserver lookup if *dns-mode* is just :clib"
+  :type :system
+  :post-loadable t)
+
 ;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; imap.cl
@@ -17,7 +23,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: imap.cl,v 1.27 2005/08/03 05:17:29 layer Exp $
+;; $Id: imap.cl,v 1.28 2006/01/05 22:28:42 layer Exp $
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in
