@@ -1,3 +1,12 @@
+2006-01-26  Ahmon Dancy  <dancy@dancy>
+
+	* mime.cl, mime-parse.cl, mime-transfer-encoding.cl:  New files to
+	aid in the construction of multipart MIME messages.
+
+	* smtp.cl: Updated send-letter to support sending of attachments.
+	Updated send-smtp/send-smtp-auth so that they can take their data
+	from a string or a stream.
+
 2006-01-05  Kevin Layer  <layer@gemini>
 
 	* imap.cl: add defpatch for 7.0
