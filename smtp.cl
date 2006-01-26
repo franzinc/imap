@@ -24,7 +24,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.9 2005/08/03 05:17:29 layer Exp $
+;; $Id: smtp.cl,v 1.10 2006/01/26 23:53:27 dancy Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -57,7 +57,7 @@
 ;;    or the final destination).  "from" is the address to be given
 ;;    as the sender.  "to" can be a string or a list of strings naming
 ;;    recipients.   
-;;    "message" is the message to be sent
+;;    "message" is the message to be sent.  It can be a string or a stream.
 ;;    cc and bcc can be either be a string or a  list of strings
 ;;	naming recipients.  All cc's and bcc's are sent the message
 ;;	but the bcc's aren't included in the header created.
@@ -73,7 +73,7 @@
 ;;    this is like send-letter except that it doesn't build a header.
 ;;    the messages should contain a header (and if not then sendmail
 ;;    notices this and builds one -- other MTAs may not be that smart).
-;;    The messages ia  list of strings to be concatenated together
+;;    The messages ia  list of strings or streams to be concatenated together
 ;;    and sent as one message
 ;;
 ;;
@@ -113,11 +113,30 @@
 
 (defun send-letter (server from to message
 		    &key cc bcc subject reply-to headers
-			 login password)
+			 login password attachments)
   ;;
   ;; see documentation at the head of this file
   ;;
-  (let ((header (make-string-output-stream))
+  
+  (if* (mime-part-constructed-p message)
+     then (if* (and (not (multipart-mixed-p message)) attachments)
+	     then (error "~
+attachments are not allowed for non-multipart/mixed messages."))
+     else (let ((part
+		 (if* (streamp message)
+		    then 
+			 (make-mime-part :file message)
+		  elseif (stringp message)
+		    then (make-mime-part :text message)
+		    else (error "~
+message must be a string, stream, or mime-part-constructed, not ~s" message))))
+	    
+	    (setf message
+	      (if* attachments
+		 then (make-mime-part :subparts (list part))
+		 else part))))
+  
+  (let ((user-header "")
 	(tos (if* (stringp to) 
 		then (list to) 
 	      elseif (consp to)
@@ -138,19 +157,21 @@
 	       elseif (consp bcc)
 		 then bcc
 		 else (error "bcc should be a string or list, not ~s" bcc))))
-    (format header "From: ~a~c~cTo: "
-	    from
-	    #\return
-	    #\linefeed)
-    (format header "~{ ~a~^,~}~c~c" tos #\return #\linefeed)
+    
+    (push (cons "From" from) (mime-part-headers message))
+    (push (cons "To" (list-to-delimited-string tos ", ")) 
+	  (mime-part-headers message))
+    
     (if* ccs 
-       then (format header "Cc: ~{ ~a~^,~}~c~c" ccs #\return #\linefeed))
+       then 
+	    (push (cons "Cc" (list-to-delimited-string ccs ", ")) 
+		  (mime-part-headers message)))
     
     (if* subject
-       then (format header "Subject: ~a~c~c" subject #\return #\linefeed))
+       then (push (cons "Subject" subject) (mime-part-headers message)))
     
     (if* reply-to
-       then (format header "Reply-To: ~a~c~c" reply-to #\return #\linefeed))
+       then (push (cons "Reply-To" reply-to) (mime-part-headers message)))
     
     (if* headers
        then (if* (stringp headers)
@@ -158,27 +179,43 @@
 	     elseif (consp headers)
 	       thenret
 	       else (error "Unknown headers format: ~s." headers))
-	    (dolist (h headers) 
-	      (format header "~a~c~c" h #\return #\linefeed)))
+	    (setf user-header 
+	      (with-output-to-string (header)
+		(dolist (h headers) 
+		  (format header "~a~%" h)))))
+
+    (if* attachments
+       then (if (not (consp attachments))
+		(setf attachments (list attachments)))
+	    
+	    (dolist (attachment attachments)
+	      (if* (mime-part-constructed-p attachment)
+		 thenret
+	       elseif (or (streamp attachment) (stringp attachment)
+			  (pathnamep attachment))
+		 then (setf attachment (make-mime-part :file attachment))
+		 else (error "~
+Attachments must be filenames, streams, or mime-part-constructed, not ~s"
+			     attachment))
+	      (nconc (mime-part-parts message) (list attachment))))
     
-    (format header "~c~c" #\return #\linefeed)
+    (with-mime-part-constructed-stream (s message)
+      (send-smtp-auth server from (append tos ccs bccs)
+		      login password
+		      user-header
+		      s))))
     
-    (send-smtp-auth server from (append tos ccs bccs)
-	       login password
-	       (get-output-stream-string header)
-	       message)))
     
-    
-(defun send-smtp(server from to &rest messages)
+(defun send-smtp (server from to &rest messages)
   (send-smtp-1 server from to nil nil messages))
 	  
 (defun send-smtp-auth (server from to login password &rest messages)
   (send-smtp-1 server from to login password messages))
-		    
+
 (defun send-smtp-1 (server from to login password messages)
   ;; send the effective concatenation of the messages via
   ;; smtp to the mail server
-  ;; Each message should be a string
+  ;; Each message should be a string or a stream.
   ;;
   ;; 'to' can be a single string or a list of strings.
   ;; each string should be in the official rfc822 format  "foo@bar.com"
@@ -188,7 +225,7 @@
   
     (unwind-protect
 	(progn
-	    
+	  
 	  (smtp-command sock "MAIL from:<~a>" from)
 	  (response-case (sock msg)
 	    (2 ;; cool
@@ -219,21 +256,29 @@
 	  
 	  
 	  (let ((at-bol t) 
-		(prev-ch nil))
+		(prev-ch nil)
+		ch stream)
 	    (dolist (message messages)
-	      (dotimes (i (length message))
-		(let ((ch (aref message i)))
-		  (if* (and at-bol (eq ch #\.))
-		     then ; to prevent . from being interpreted as eol
-			  (write-char #\. sock))
-		  (if* (eq ch #\newline)
-		     then (setq at-bol t)
-			  (if* (not (eq prev-ch #\return))
-			     then (write-char #\return sock))
-		     else (setq at-bol nil))
-		  (write-char ch sock)
-		  (setq prev-ch ch)))))
-	
+	      (setf stream (if* (streamp message)
+			      then message 
+			      else (make-string-input-stream message)))
+	      (unwind-protect 
+		  (progn
+		    (while (setf ch (read-char stream nil nil))
+		      (if* (and at-bol (eq ch #\.))
+			 then ;; to prevent . from being interpreted as eol
+			      (write-char #\. sock))
+		      (if* (eq ch #\newline)
+			 then (setq at-bol t)
+			      (if* (not (eq prev-ch #\return))
+				 then (write-char #\return sock))
+			 else (setq at-bol nil))
+		      (write-char ch sock)
+		      (setq prev-ch ch)))
+		;; unwind-protect
+		(if* (not (streamp message))
+		   then (close stream)))))
+		
 	  (write-char #\return sock) (write-char #\linefeed sock)
 	  (write-char #\. sock)
 	  (write-char #\return sock) (write-char #\linefeed sock)
