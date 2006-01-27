@@ -1,4 +1,4 @@
-;; $Id: mime-transfer-encoding.cl,v 1.1 2006/01/26 23:53:27 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.2 2006/01/27 01:28:58 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -20,85 +20,6 @@
 	     (fixnum got))
     (while (/= 0 (setf got (read-vector buf instream)))
       (write-vector buf outstream :end got))))
-
-;; Temporary until this change is made in excl.cl.
-(defparameter excl::*to-base64*
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
-
-;; This should be added to the excl package.
-(defun base64-encode-stream (instream outstream &key (wrap-at 72))
-  (declare (optimize (speed 3)))
-  ;; inbuf _must_ be a size which is a multiple of three.  The 
-  ;; encoding code depends on it.  outbuf must be 4/3rds bigger than
-  ;; inbuf.
-  (let ((inbuf (make-array #.(* 3 4096) :element-type '(unsigned-byte 8)))
-	(outbuf (make-array #.(* 4 4096) :element-type 'character))
-	remaining end outpos inpos value)
-    (declare (dynamic-extent inbuf outbuf)
-	     (fixnum remaining outpos end inpos value))
-	    
-    (macrolet ((outchar (char)
-		 `(progn
-		    (setf (schar outbuf outpos) ,char)
-		    (incf outpos)))
-	       (outchar-base64 (x)
-		 `(outchar (schar excl::*to-base64* (logand ,x 63)))))
-      
-      (flet ((read-full-vector (buf stream)
-	       (let ((pos 0)
-		     (max (length buf))
-		     newpos)
-		 (declare (fixnum pos max got newpos))
-		 (while (< pos max)
-		   (setf newpos (read-vector buf stream :start pos))
-		   (if* (= newpos pos)
-		      then (return))
-		   (setf pos newpos))
-		 pos)))
-
-	(while (/= 0 (setf end (read-full-vector inbuf instream)))
-	  (setf remaining end)
-	  (setf inpos 0)
-	  (setf outpos 0)
-	  (while (> remaining 0)
-	    (if* (>= remaining 3)
-	       then (setf value (logior (ash (aref inbuf inpos) 16)
-					(ash (aref inbuf (+ 1 inpos)) 8)
-					(aref inbuf (+ 2 inpos))))
-		    (incf inpos 3)
-		    (decf remaining 3)
-		    (outchar-base64 (ash value -18))
-		    (outchar-base64 (ash value -12))
-		    (outchar-base64 (ash value -6))
-		    (outchar-base64 value)
-	     elseif (= remaining 2)
-	       then (setf value (logior (ash (aref inbuf inpos) 16)
-					(ash (aref inbuf (+ 1 inpos)) 8)))
-		    (incf inpos 2)
-		    (decf remaining 2)
-		    (outchar-base64 (ash value -18))
-		    (outchar-base64 (ash value -12))
-		    (outchar-base64 (ash value -6))
-		    (outchar #\=)
-	       else (setf value (ash (aref inbuf inpos) 16))
-		    (incf inpos)
-		    (decf remaining)
-		    (outchar-base64 (ash value -18))
-		    (outchar-base64 (ash value -12))
-		    (outchar #\=)
-		    (outchar #\=)))
-		
-	  ;; generate output.
-	  (if* (null wrap-at)
-	     then (write-string outbuf outstream :end outpos)
-	     else (setf inpos 0)
-		  (while (< inpos outpos)
-		    (let ((len (min (- outpos inpos) wrap-at)))
-		      (write-string outbuf outstream 
-				    :start inpos
-				    :end (+ inpos len))
-		      (incf inpos len)
-		      (write-char #\newline outstream)))))))))
 
 (defconstant *qp-hex-digits* "0123456789ABCDEF")
 

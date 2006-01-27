@@ -1,6 +1,8 @@
 2006-01-26  Kevin Layer  <layer@gemini>
 
 	* mime.cl: provide
+	* mime-transfer-encoding.cl: remove excl::*to-base64* and
+	  base64-encode-stream (since they're in the base lisp now)
 	* smtp.cl: require streamp and mime
 
 2006-01-26  Ahmon Dancy  <dancy@dancy>
