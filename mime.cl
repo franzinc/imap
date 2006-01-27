@@ -1,4 +1,10 @@
-;; $Id: mime.cl,v 1.2 2006/01/27 01:22:47 layer Exp $
+#+(version= 8 0)
+(sys:defpatch "mime" 0
+  "v0: New module.  See documentation."
+  :type :system
+  :post-loadable t)
+
+;; $Id: mime.cl,v 1.3 2006/01/27 01:40:10 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
