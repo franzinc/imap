@@ -1,4 +1,4 @@
-;; $Id: mime.cl,v 1.1 2006/01/26 23:53:27 dancy Exp $
+;; $Id: mime.cl,v 1.2 2006/01/27 01:22:47 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -23,6 +23,8 @@
    #:mime-part-headers
    #:mime-part-parts
    #:mime-part-boundary))
+
+(provide :mime)
 
 (in-package :net.post-office)
 

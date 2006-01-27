@@ -24,7 +24,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.10 2006/01/26 23:53:27 dancy Exp $
+;; $Id: smtp.cl,v 1.11 2006/01/27 01:22:47 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -45,7 +45,9 @@
 (in-package :net.post-office)
 
 (eval-when (compile load eval)
-  (require :sasl))
+  (require :streamp)
+  (require :sasl)
+  (require :mime))
 
 ;; the exported functions:
 

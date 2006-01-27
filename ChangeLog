@@ -1,3 +1,8 @@
+2006-01-26  Kevin Layer  <layer@gemini>
+
+	* mime.cl: provide
+	* smtp.cl: require streamp and mime
+
 2006-01-26  Ahmon Dancy  <dancy@dancy>
 
 	* mime.cl, mime-parse.cl, mime-transfer-encoding.cl:  New files to
