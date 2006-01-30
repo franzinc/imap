@@ -4,7 +4,7 @@
   :type :system
   :post-loadable t)
 
-;; $Id: mime.cl,v 1.3 2006/01/27 01:40:10 layer Exp $
+;; $Id: mime.cl,v 1.4 2006/01/30 18:26:39 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -283,7 +283,7 @@ This is a multi-part message in MIME format.~%"))
 	      (unwind-protect
 		  (let ((encoding (mime-part-encoding part)))
 		    (if* (equalp encoding "base64")
-		       then (base64-encode-stream instream stream)
+		       then (excl::base64-encode-stream instream stream)
 		     elseif (equalp encoding "quoted-printable")
 		       then (qp-encode-stream instream stream)
 		       else (raw-encode-stream instream stream)))
