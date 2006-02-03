@@ -10,7 +10,7 @@
   :type :system
   :post-loadable t)
 
-;; $Id: mime-api.cl,v 1.1 2006/02/02 17:46:01 layer Exp $
+;; $Id: mime-api.cl,v 1.2 2006/02/03 23:25:17 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -24,6 +24,9 @@
    ;; macros
    #:mime-get-header
    #:with-mime-part-constructed-stream
+
+   ;; classes
+   #:mime-part-constructed
    
    ;; slot accessors
    #:mime-part-type

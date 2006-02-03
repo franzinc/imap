@@ -36,7 +36,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.14 2006/02/03 18:02:26 layer Exp $
+;; $Id: smtp.cl,v 1.15 2006/02/03 23:25:17 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -150,7 +150,8 @@ message must be a string, stream, or mime-part-constructed, not ~s" message))))
 		 then (make-mime-part :subparts (list part))
 		 else part))))
   
-  (let ((user-header "")
+  (let ((hdrs nil)
+	(user-headers "")
 	(tos (if* (stringp to) 
 		then (list to) 
 	      elseif (consp to)
@@ -172,20 +173,26 @@ message must be a string, stream, or mime-part-constructed, not ~s" message))))
 		 then bcc
 		 else (error "bcc should be a string or list, not ~s" bcc))))
     
-    (push (cons "From" from) (mime-part-headers message))
-    (push (cons "To" (list-to-delimited-string tos ", ")) 
-	  (mime-part-headers message))
-    
-    (if* ccs 
-       then 
-	    (push (cons "Cc" (list-to-delimited-string ccs ", ")) 
-		  (mime-part-headers message)))
-    
-    (if* subject
-       then (push (cons "Subject" subject) (mime-part-headers message)))
-    
-    (if* reply-to
-       then (push (cons "Reply-To" reply-to) (mime-part-headers message)))
+    (setf hdrs
+      (with-output-to-string (hdrs)
+	(macrolet ((already-have (name) 
+		     `(mime-get-header ,name message)))
+	  
+	  ;; Give priority to headers already provided in a mime-part.
+	  (if* (not (already-have "From"))
+	     then (format hdrs "From: ~a~%" from))
+	
+	  (if* (not (already-have "To"))
+	     then (format hdrs "To: ~a~%" (list-to-delimited-string tos ", ")))
+	
+	  (if* (and ccs (not (already-have "Cc")))
+	     then (format hdrs "Cc: ~a~%" (list-to-delimited-string ccs ", ")))
+	
+	  (if* (and subject (not (already-have "Subject")))
+	     then (format hdrs "Subject: ~a~%" subject))
+	
+	  (if* (and reply-to (not (already-have "Reply-To")))
+	     then (format hdrs "Reply-To: ~a~%" reply-to)))))
     
     (if* headers
        then (if* (stringp headers)
@@ -193,31 +200,40 @@ message must be a string, stream, or mime-part-constructed, not ~s" message))))
 	     elseif (consp headers)
 	       thenret
 	       else (error "Unknown headers format: ~s." headers))
-	    (setf user-header 
+	    (setf user-headers
 	      (with-output-to-string (header)
 		(dolist (h headers) 
 		  (format header "~a~%" h)))))
 
-    (if* attachments
-       then (if (not (consp attachments))
-		(setf attachments (list attachments)))
+    ;; Temporarily modifies 'message', which may be user-provided.
+    (let ((parts-save (mime-part-parts message)))
+      (if* attachments
+	 then (if (not (consp attachments))
+		  (setf attachments (list attachments)))
 	    
-	    (dolist (attachment attachments)
-	      (if* (mime-part-constructed-p attachment)
-		 thenret
-	       elseif (or (streamp attachment) (stringp attachment)
-			  (pathnamep attachment))
-		 then (setf attachment (make-mime-part :file attachment))
-		 else (error "~
+	      (let (res)
+		(dolist (attachment attachments)
+		  (if* (mime-part-constructed-p attachment)
+		     thenret
+		   elseif (or (streamp attachment) (stringp attachment)
+			      (pathnamep attachment))
+		     then (setf attachment (make-mime-part :file attachment))
+		     else (error "~
 Attachments must be filenames, streams, or mime-part-constructed, not ~s"
-			     attachment))
-	      (nconc (mime-part-parts message) (list attachment))))
-    
-    (with-mime-part-constructed-stream (s message)
-      (send-smtp-auth server from (append tos ccs bccs)
-		      login password
-		      user-header
-		      s))))
+				 attachment))
+		  (push attachment res))
+	      
+		(setf (mime-part-parts message) (append parts-save res))))
+      
+      (with-mime-part-constructed-stream (s message)
+	(send-smtp-auth server from (append tos ccs bccs)
+			login password
+			hdrs
+			user-headers
+			s))
+      
+      (setf (mime-part-parts message) parts-save)
+      t)))
     
     
 (defun send-smtp (server from to &rest messages)

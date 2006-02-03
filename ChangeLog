@@ -1,3 +1,12 @@
+2006-02-03  Ahmon Dancy  <dancy@dancy>
+
+	* imap-api.cl: Export mime-part-constructed class.  
+
+	* smtp.cl: send-letter: Avoid modifying user-provided mime-part
+	(if provided).  It will still be modified if the user provides an
+	attachments as well (which is a semi-strange thing to do), but the
+	change will be reverted after the operation is complete.
+
 2006-02-02  Kevin Layer  <layer@gemini>
 
 	* smtp.cl: add defpatch for 7.0
