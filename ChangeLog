@@ -1,5 +1,7 @@
 2006-02-02  Kevin Layer  <layer@gemini>
 
+	* smtp.cl: add defpatch for 7.0
+
 	* rename mime.cl to mime-api.cl -- cl/src/sys/make.cl concatenates
 	  into mime.fasl, and it won't work to have an existing mime.fasl
 

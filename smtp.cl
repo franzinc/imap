@@ -4,6 +4,12 @@
   :type :system
   :post-loadable t)
 
+#+(version= 7 0)
+(sys:defpatch "smtp" 1
+  "v1: send-letter w/attachments; send-smtp* can take streams"
+  :type :system
+  :post-loadable t)
+
 ;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; smtp.cl
@@ -30,7 +36,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.12 2006/01/27 01:40:10 layer Exp $
+;; $Id: smtp.cl,v 1.13 2006/02/03 05:06:28 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
