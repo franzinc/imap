@@ -1,3 +1,9 @@
+2006-03-24  Kevin Layer  <layer@gemini>
+
+    from dancy:
+	* smtp.cl: rfe6507: add :port argument to send-letter, send-smtp,
+	  send-smtp-auth
+
 2006-02-03  Ahmon Dancy  <dancy@dancy>
 
 	* imap-api.cl: Export mime-part-constructed class.  

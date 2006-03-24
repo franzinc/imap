@@ -1,12 +1,14 @@
 #+(version= 8 0)
-(sys:defpatch "smtp" 1
-  "v1: send-letter w/attachments; send-smtp* can take streams"
+(sys:defpatch "smtp" 2
+  "v1: send-letter w/attachments; send-smtp* can take streams;
+v2: add :port argument to send-letter, send-smtp, send-smtp-auth."
   :type :system
   :post-loadable t)
 
 #+(version= 7 0)
-(sys:defpatch "smtp" 2
-  "v2: send-letter w/attachments; send-smtp* can take streams"
+(sys:defpatch "smtp" 3
+  "v2: send-letter w/attachments; send-smtp* can take streams;
+v3: add :port argument to send-letter, send-smtp, send-smtp-auth."
   :type :system
   :post-loadable t)
 
@@ -36,7 +38,7 @@
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.15 2006/02/03 23:25:17 layer Exp $
+;; $Id: smtp.cl,v 1.16 2006/03/24 20:05:15 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -332,46 +334,59 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   ;; make that initial connection to the mail server
   ;; returning a socket connected to it and 
   ;; signaling an error if it can't be made.
-  (let ((ipaddr (determine-mail-server server))
-	(sock)
-	(ok))
+  
+  (let ((port 25)) ;; standard SMTP port
+    (if* (consp server)
+       then (setf port (cdr server))
+	    (setf server (car server))
+     elseif (stringp server)
+       then (multiple-value-bind (match whole m1 m2)
+		(match-re "^([^:]+):([0-9]+)$" server)
+	      (declare (ignore whole))
+	      (if* match
+		 then (setf server m1)
+		      (setf port (parse-integer m2)))))
     
-    (if* (null ipaddr)
-       then (error "Can't determine ip address for mail server ~s" server))
-    
-    (setq sock (socket:make-socket :remote-host ipaddr
-				   :remote-port 25  ; smtp
-				   ))
-    (unwind-protect
-	(progn
-	  (response-case (sock msg)
-	    (2 ;; to the initial connect
-	     nil)
-	    (t (error "initial connect failed: ~s" msg)))
-	  
-	  ;; now that we're connected we can compute our hostname
-	  (let ((hostname (socket:ipaddr-to-hostname
-			   (socket:local-host sock))))
-	    (if* (null hostname)
-	       then (setq hostname
-		      (format nil "[~a]" (socket:ipaddr-to-dotted
-					  (socket:local-host sock)))))
-	    (let ((mechs (smtp-ehlo sock hostname)))
-	      (if (and mechs login password)
-		  (setf sock 
-		    (smtp-authenticate sock server mechs login password)))))
-	  
-	  ; all is good
-	  (setq ok t))
+    (let ((ipaddr (determine-mail-server server))
+	  (sock)
+	  (ok))
       
-      ; cleanup:
-      (if* (null ok) 
-	 then (close sock :abort t)
-	      (setq sock nil)))
+      (if* (null ipaddr)
+	 then (error "Can't determine ip address for mail server ~s" server))
+      
+      (setq sock (socket:make-socket :remote-host ipaddr
+				     :remote-port port
+				     ))
+      (unwind-protect
+	  (progn
+	    (response-case (sock msg)
+			   (2 ;; to the initial connect
+			    nil)
+			   (t (error "initial connect failed: ~s" msg)))
+	  
+	    ;; now that we're connected we can compute our hostname
+	    (let ((hostname (socket:ipaddr-to-hostname
+			     (socket:local-host sock))))
+	      (if* (null hostname)
+		 then (setq hostname
+			(format nil "[~a]" (socket:ipaddr-to-dotted
+					    (socket:local-host sock)))))
+	      (let ((mechs (smtp-ehlo sock hostname)))
+		(if (and mechs login password)
+		    (setf sock 
+		      (smtp-authenticate sock server mechs login password)))))
+	  
+	    ;; all is good
+	    (setq ok t))
+      
+	;; cleanup:
+	(if* (null ok) 
+	   then (close sock :abort t)
+		(setq sock nil)))
     
-    ; return:
-    sock
-    ))
+      ;; return:
+      sock
+      )))
 	    
 
 ;; Returns string with mechanisms, or nil if none.
@@ -601,17 +616,17 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   ;; return the ipaddress to be used to connect to the 
   ;; the mail server.
   ;; name is any method for naming a machine:
-  ;;   integer ip address
+  ;;   ip address (binary)
   ;;   string with dotted ip address
-  ;;   string naming a machine
+  ;;   string naming a domain
   ;; we can only do the mx lookup for the third case, the rest 
   ;; we just return the ipaddress for what we were given
   ;;
   (let (ipaddr)
-    (if* (integerp name)
+    (if* (socket:ipaddrp name)
        then name
-     elseif (integerp (setq ipaddr
-			(socket:dotted-to-ipaddr name :errorp nil)))
+     elseif (socket:ipaddrp (setq ipaddr
+			      (socket:dotted-to-ipaddr name :errorp nil)))
        then ipaddr
        else ; do mx lookup if acldns is being used
 	    (if* (or (eq socket:*dns-mode* :acldns)
