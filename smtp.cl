@@ -38,7 +38,7 @@ v3: add :port argument to send-letter, send-smtp, send-smtp-auth."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.17 2006/03/24 21:21:21 layer Exp $
+;; $Id: smtp.cl,v 1.18 2006/03/24 21:22:31 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -613,8 +613,8 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 
 (eval-when (compile eval)
   (defmacro ipaddrp (obj)
-    #+(version>= 8 0) (socket:ipaddrp ,obj)
-    #-(version>= 8 0) (and (integerp ,obj) (<= 0 ,obj #.(1- (expt 2 32)))))
+    #+(version>= 8 0) `(socket:ipaddrp ,obj)
+    #-(version>= 8 0) `(and (integerp ,obj) (<= 0 ,obj #.(1- (expt 2 32)))))
   )
 
 (defun determine-mail-server (name)
