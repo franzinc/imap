@@ -38,7 +38,7 @@ v3: add :port argument to send-letter, send-smtp, send-smtp-auth."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.16 2006/03/24 20:05:15 layer Exp $
+;; $Id: smtp.cl,v 1.17 2006/03/24 21:21:21 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -611,6 +611,11 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 
       (setq last-ch ch))))
 
+(eval-when (compile eval)
+  (defmacro ipaddrp (obj)
+    #+(version>= 8 0) (socket:ipaddrp ,obj)
+    #-(version>= 8 0) (and (integerp ,obj) (<= 0 ,obj #.(1- (expt 2 32)))))
+  )
 
 (defun determine-mail-server (name)
   ;; return the ipaddress to be used to connect to the 
@@ -623,10 +628,9 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   ;; we just return the ipaddress for what we were given
   ;;
   (let (ipaddr)
-    (if* (socket:ipaddrp name)
+    (if* (ipaddrp name)
        then name
-     elseif (socket:ipaddrp (setq ipaddr
-			      (socket:dotted-to-ipaddr name :errorp nil)))
+     elseif (ipaddrp (setq ipaddr (socket:dotted-to-ipaddr name :errorp nil)))
        then ipaddr
        else ; do mx lookup if acldns is being used
 	    (if* (or (eq socket:*dns-mode* :acldns)

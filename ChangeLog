@@ -1,5 +1,6 @@
 2006-03-24  Kevin Layer  <layer@gemini>
 
+	* smtp.cl: rfe6507: fix for socket:ipaddrp being 8.0 only
     from dancy:
 	* smtp.cl: rfe6507: add :port argument to send-letter, send-smtp,
 	  send-smtp-auth
