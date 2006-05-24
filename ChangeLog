@@ -1,3 +1,8 @@
+2006-05-24  Kevin Layer  <layer@gemini>
+
+   from dancy:
+	* smtp.cl: bug16214: Fix regression in send-smtp behavior
+
 2006-03-24  Kevin Layer  <layer@gemini>
 
 	* smtp.cl: rfe6507: fix for socket:ipaddrp being 8.0 only

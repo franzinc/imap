@@ -1,14 +1,16 @@
 #+(version= 8 0)
-(sys:defpatch "smtp" 2
+(sys:defpatch "smtp" 3
   "v1: send-letter w/attachments; send-smtp* can take streams;
-v2: add :port argument to send-letter, send-smtp, send-smtp-auth."
+v2: add :port argument to send-letter, send-smtp, send-smtp-auth;
+v3: fix incompatibility introduced in v2."
   :type :system
   :post-loadable t)
 
 #+(version= 7 0)
-(sys:defpatch "smtp" 3
+(sys:defpatch "smtp" 4
   "v2: send-letter w/attachments; send-smtp* can take streams;
-v3: add :port argument to send-letter, send-smtp, send-smtp-auth."
+v3: add :port argument to send-letter, send-smtp, send-smtp-auth;
+v4: fix incompatibility introduced in v3."
   :type :system
   :post-loadable t)
 
@@ -38,7 +40,7 @@ v3: add :port argument to send-letter, send-smtp, send-smtp-auth."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.18 2006/03/24 21:22:31 layer Exp $
+;; $Id: smtp.cl,v 1.19 2006/05/24 20:38:42 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -291,25 +293,26 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 		(prev-ch nil)
 		ch stream)
 	    (dolist (message messages)
-	      (setf stream (if* (streamp message)
-			      then message 
-			      else (make-string-input-stream message)))
-	      (unwind-protect 
-		  (progn
-		    (while (setf ch (read-char stream nil nil))
-		      (if* (and at-bol (eq ch #\.))
-			 then ;; to prevent . from being interpreted as eol
-			      (write-char #\. sock))
-		      (if* (eq ch #\newline)
-			 then (setq at-bol t)
-			      (if* (not (eq prev-ch #\return))
-				 then (write-char #\return sock))
-			 else (setq at-bol nil))
-		      (write-char ch sock)
-		      (setq prev-ch ch)))
-		;; unwind-protect
-		(if* (not (streamp message))
-		   then (close stream)))))
+	      (when message
+		(setf stream (if* (streamp message)
+				then message 
+				else (make-string-input-stream message)))
+		(unwind-protect 
+		    (progn
+		      (while (setf ch (read-char stream nil nil))
+			(if* (and at-bol (eq ch #\.))
+			   then ;; to prevent . from being interpreted as eol
+				(write-char #\. sock))
+			(if* (eq ch #\newline)
+			   then (setq at-bol t)
+				(if* (not (eq prev-ch #\return))
+				   then (write-char #\return sock))
+			   else (setq at-bol nil))
+			(write-char ch sock)
+			(setq prev-ch ch)))
+		  ;; unwind-protect
+		  (if* (not (streamp message))
+		     then (close stream))))))
 		
 	  (write-char #\return sock) (write-char #\linefeed sock)
 	  (write-char #\. sock)
