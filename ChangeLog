@@ -1,3 +1,9 @@
+2006-08-17  Kevin Layer  <layer@gemini>
+
+    from dancy:
+	* imap.cl: rfe6632: Add fetch-letter-sequence support to imap
+	  module for IMAP servers
+
 2006-05-24  Kevin Layer  <layer@gemini>
 
    from dancy:

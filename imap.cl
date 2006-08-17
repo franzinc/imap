@@ -1,6 +1,13 @@
 #+(version= 7 0)
-(sys:defpatch "smtp" 1
-  "fix nameserver lookup if *dns-mode* is just :clib"
+(sys:defpatch "imap" 2
+  "v1: fix nameserver lookup if *dns-mode* is just :clib;
+v2: fetch-letter-sequence support."
+  :type :system
+  :post-loadable t)
+
+#+(version= 8 0)
+(sys:defpatch "imap" 1
+  "v1: fetch-letter-sequence support."
   :type :system
   :post-loadable t)
 
@@ -23,7 +30,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: imap.cl,v 1.28 2006/01/05 22:28:42 layer Exp $
+;; $Id: imap.cl,v 1.29 2006/08/17 18:07:34 layer Exp $
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in
@@ -182,6 +189,16 @@
     :initform 0)
    
    ;;; end list of values for the currently selected mailbox
+   
+   ;;; state information for fetch-letter-sequence
+   (fetch-letter-offset 
+    :accessor fetch-letter-offset)
+   (fetch-letter-number 
+    :accessor fetch-letter-number)
+   (fetch-letter-uid
+    :accessor fetch-letter-uid)
+   (fetch-letter-finished
+    :accessor fetch-letter-finished)
    )
   )
 
@@ -700,17 +717,52 @@
 				t ; extra stuff
 				))
 
+(defmethod begin-fetch-letter-sequence ((mb imap-mailbox) number &key uid)
+  (setf (fetch-letter-offset mb) 0)
+  (setf (fetch-letter-number mb) number)
+  (setf (fetch-letter-uid mb) uid)
+  (setf (fetch-letter-finished mb) nil))
+
+
 (defmethod begin-fetch-letter-sequence ((mb pop-mailbox) number &key uid)
   (declare (ignore uid))
   (send-pop-command-get-results mb (format nil "RETR ~d" number))
   (begin-extended-results-sequence mb))
 
+(defmethod fetch-letter-sequence ((mb imap-mailbox) buffer 
+				  &key (start 0) (end (length buffer)))
+  (let* ((num (fetch-letter-number mb))
+	 (offset (fetch-letter-offset mb))
+	 (uid (fetch-letter-uid mb))
+	 (buflen (- end start))
+	 (data (fetch-field num (format nil "body[]<~d>" offset) 
+			    (fetch-parts mb num 
+					 (format nil "body[]<~d.~d>" offset buflen)
+					 :uid uid)
+			    :uid uid))
+	 (datalen (length data)))
+
+    (setf (subseq buffer start end) data)
+    
+    (if* (and (> buflen 0) (= datalen 0))
+       then (setf (fetch-letter-finished mb) t))
+    
+    (setf (fetch-letter-offset mb) (+ offset buflen))
+    
+    (+ start datalen)))
+		       
 
 (defmethod fetch-letter-sequence ((mb pop-mailbox) buffer &key (start 0) (end (length buffer)))
   (get-extended-results-sequence mb buffer :start start :end end))
 
+(defmethod end-fetch-letter-sequence ((mb imap-mailbox))
+  )
+
 (defmethod end-fetch-letter-sequence ((mb pop-mailbox))
   (end-extended-results-sequence mb))
+
+(defmethod end-of-letter-p ((mb imap-mailbox))
+  (fetch-letter-finished mb))
 
 (defmethod end-of-letter-p ((mb pop-mailbox))
   (end-of-extended-results-p mb))
