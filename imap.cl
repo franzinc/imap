@@ -1,7 +1,6 @@
 #+(version= 7 0)
-(sys:defpatch "imap" 2
-  "v1: fix nameserver lookup if *dns-mode* is just :clib;
-v2: fetch-letter-sequence support."
+(sys:defpatch "imap" 1
+  "v1: fetch-letter-sequence support."
   :type :system
   :post-loadable t)
 
@@ -30,7 +29,7 @@ v2: fetch-letter-sequence support."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: imap.cl,v 1.29 2006/08/17 18:07:34 layer Exp $
+;; $Id: imap.cl,v 1.30 2006/08/17 18:16:09 layer Exp $
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in
