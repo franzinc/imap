@@ -1,8 +1,9 @@
 #+(version= 8 0)
-(sys:defpatch "smtp" 3
+(sys:defpatch "smtp" 4
   "v1: send-letter w/attachments; send-smtp* can take streams;
 v2: add :port argument to send-letter, send-smtp, send-smtp-auth;
-v3: fix incompatibility introduced in v2."
+v3: fix incompatibility introduced in v2;
+v4: remove stray force-output of t."
   :type :system
   :post-loadable t)
 
@@ -40,7 +41,7 @@ v4: fix incompatibility introduced in v3."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.19 2006/05/24 20:38:42 layer Exp $
+;; $Id: smtp.cl,v 1.20 2006/10/16 17:35:38 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -324,7 +325,10 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 			 
 	    (t (error "message not sent: ~s" msg)))
 
-	  (force-output t)
+	  ;; Hmmmm, this is not good.  Perhaps force-output on
+	  ;; *error-output* is what was intended?  I'm pretty sure that's
+	  ;; *not needed.
+	  #+ignore (force-output t)
 	  
 	  (smtp-command sock "QUIT")
 	  (response-case (sock msg)
