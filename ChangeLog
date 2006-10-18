@@ -1,3 +1,10 @@
+2006-10-18  Ahmon Dancy  <dancy@dancy>
+
+	* mime-api.cl: bug16479: Improve default content-transfer-encoding
+	determination.   Also, removed some (load-time-value)'s that were
+	wrapped around some regular expression strings (not sure why).
+	It was preventing the regular expressions from being compiled.
+
 2006-10-16  Kevin Layer  <layer@gemini.franz.com>
 
 	* smtp.cl: bug16475: remove stray (force-output t)

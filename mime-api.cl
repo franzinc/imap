@@ -1,16 +1,18 @@
 #+(version= 8 0)
-(sys:defpatch "mime" 0
-  "v0: New module.  See documentation."
+(sys:defpatch "mime" 1
+  "v0: New module.  See documentation.;
+v1: Improve default transfer encoding determination."
   :type :system
   :post-loadable t)
 
 #+(version= 7 0)
-(sys:defpatch "mime" 0
-  "v0: New module.  See documentation."
+(sys:defpatch "mime" 1
+  "v0: New module.  See documentation.;
+v1: Improve default transfer encoding determination."
   :type :system
   :post-loadable t)
 
-;; $Id: mime-api.cl,v 1.2 2006/02/03 23:25:17 layer Exp $
+;; $Id: mime-api.cl,v 1.3 2006/10/18 18:41:57 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -152,9 +154,10 @@
     
     (when (and (not multipart) (null encoding))
       (if* textp
-	 then (if* (equalp charset "us-ascii")
+	 then (if* (member charset '("us-ascii" "iso-2022-jp")
+			   :test #'equalp)
 		 then (setf encoding "7bit")
-		 else (setf encoding "quoted-printable"))
+		 else (setf encoding "8bit"))
 	 else (setf encoding "base64")))
 
     (setf (mime-part-type part) type)
