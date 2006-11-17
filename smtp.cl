@@ -1,17 +1,19 @@
 #+(version= 8 0)
-(sys:defpatch "smtp" 4
+(sys:defpatch "smtp" 5
   "v1: send-letter w/attachments; send-smtp* can take streams;
 v2: add :port argument to send-letter, send-smtp, send-smtp-auth;
 v3: fix incompatibility introduced in v2;
-v4: remove stray force-output of t."
+v4: remove stray force-output of t;
+v5: send-smtp-1: New external-format keyword arg."
   :type :system
   :post-loadable t)
 
 #+(version= 7 0)
-(sys:defpatch "smtp" 4
+(sys:defpatch "smtp" 5
   "v2: send-letter w/attachments; send-smtp* can take streams;
 v3: add :port argument to send-letter, send-smtp, send-smtp-auth;
-v4: fix incompatibility introduced in v3."
+v4: fix incompatibility introduced in v3;
+v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
   :type :system
   :post-loadable t)
 
@@ -41,7 +43,7 @@ v4: fix incompatibility introduced in v3."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.20 2006/10/16 17:35:38 layer Exp $
+;; $Id: smtp.cl,v 1.21 2006/11/17 00:32:07 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -247,7 +249,8 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 (defun send-smtp-auth (server from to login password &rest messages)
   (send-smtp-1 server from to login password messages))
 
-(defun send-smtp-1 (server from to login password messages)
+(defun send-smtp-1 (server from to login password messages
+		    &key (external-format :default))
   ;; send the effective concatenation of the messages via
   ;; smtp to the mail server
   ;; Each message should be a string or a stream.
@@ -297,24 +300,24 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 	      (when message
 		(setf stream (if* (streamp message)
 				then message 
-				else (make-string-input-stream message)))
-		(unwind-protect 
-		    (progn
-		      (while (setf ch (read-char stream nil nil))
-			(if* (and at-bol (eq ch #\.))
-			   then ;; to prevent . from being interpreted as eol
-				(write-char #\. sock))
-			(if* (eq ch #\newline)
-			   then (setq at-bol t)
-				(if* (not (eq prev-ch #\return))
-				   then (write-char #\return sock))
-			   else (setq at-bol nil))
-			(write-char ch sock)
-			(setq prev-ch ch)))
-		  ;; unwind-protect
-		  (if* (not (streamp message))
-		     then (close stream))))))
-		
+				else (make-buffer-input-stream
+				      (string-to-octets 
+				       message 
+				       :null-terminate nil
+				       :external-format external-format))))
+
+		(while (setf ch (read-byte stream nil))
+		  (if* (and at-bol (eq ch #.(char-code #\.)))
+		     then ;; to prevent . from being interpreted as eol
+			  (write-char #\. sock))
+		  (if* (eq ch #.(char-code #\newline))
+		     then (setq at-bol t)
+			  (if* (not (eq prev-ch #.(char-code #\return)))
+			     then (write-char #\return sock))
+		     else (setq at-bol nil))
+		  (write-byte ch sock)
+		  (setq prev-ch ch)))))
+
 	  (write-char #\return sock) (write-char #\linefeed sock)
 	  (write-char #\. sock)
 	  (write-char #\return sock) (write-char #\linefeed sock)

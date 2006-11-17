@@ -1,18 +1,20 @@
 #+(version= 8 0)
-(sys:defpatch "mime" 1
+(sys:defpatch "mime" 2
   "v0: New module.  See documentation.;
-v1: Improve default transfer encoding determination."
+v1: Improve default transfer encoding determination;
+v2: make-mime-part: Default external-format is :utf8."
   :type :system
   :post-loadable t)
 
 #+(version= 7 0)
-(sys:defpatch "mime" 1
+(sys:defpatch "mime" 2
   "v0: New module.  See documentation.;
-v1: Improve default transfer encoding determination."
+v1: Improve default transfer encoding determination;
+v2: make-mime-part: Default external-format is :utf8."
   :type :system
   :post-loadable t)
 
-;; $Id: mime-api.cl,v 1.3 2006/10/18 18:41:57 layer Exp $
+;; $Id: mime-api.cl,v 1.4 2006/11/17 00:32:07 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -100,10 +102,10 @@ v1: Improve default transfer encoding determination."
 (defun make-mime-part (&key content-type encoding headers 
 			    (attachmentp nil attachmentp-supplied)
 			    name text (start 0) end file
-			    subparts (external-format :default)
+			    subparts (external-format :utf8)
 			    parameters charset id description)
   (let ((part (make-instance 'mime-part-constructed))
-	type subtype multipart textp filepath)
+	type subtype multipart textp filepath orig-text)
     
     (if* (and text file)
        then (error "Only one of :text or :file may be specified"))
@@ -115,7 +117,8 @@ v1: Improve default transfer encoding determination."
       (if* (streamp file)
 	 then (setf filepath (ignore-errors (namestring file)))
 	 else (setf filepath file)))
-    
+
+    ;; Select default content-type
     (when (null content-type)
       (if* filepath
 	 then (setf content-type (lookup-mime-type filepath)))
@@ -145,21 +148,34 @@ v1: Improve default transfer encoding determination."
     
     (if* (and (not multipart) (null text) (null file))
        then (error "One of :text or :file must be specified"))
+
     
+    ;; Select default charset
     (if* (and (null charset) textp)
        then (setf charset 
 	      (or 
 	       (guess-charset-from-ef (find-external-format external-format))
 	       "us-ascii")))
-    
-    (when (and (not multipart) (null encoding))
-      (if* textp
-	 then (if* (member charset '("us-ascii" "iso-2022-jp")
-			   :test #'equalp)
-		 then (setf encoding "7bit")
-		 else (setf encoding "8bit"))
-	 else (setf encoding "base64")))
 
+    ;; For :text, break down to the final usb8.
+    (when text
+      (setf orig-text text)
+      (setf text (if* (stringp text)
+		    then (string-to-octets text :null-terminate nil
+					   :external-format external-format
+					   :start start
+					   :end end)
+		    else (subseq text start end))))
+    
+    ;; Select default encoding, which is always base64 except for
+    ;; when :text was supplied as a string, in which case we scan to
+    ;; choose between 7bit and base64.
+    (when (and (not multipart) (null encoding))
+      (setf encoding
+	(if* (and (stringp orig-text) (not (8-bit-array-p text)))
+	   then "7bit"
+	   else "base64")))
+  
     (setf (mime-part-type part) type)
     (setf (mime-part-subtype part) subtype)
     (setf (mime-part-parameters part) parameters)
@@ -179,11 +195,7 @@ v1: Improve default transfer encoding determination."
 	    (if* (not attachmentp-supplied)
 	       then (setf attachmentp t))
        else (setf (source-type part) :usb8)
-	    (setf (source part) 
-	      (if* (stringp text)
-		 then (string-to-octets text :null-terminate nil
-					:external-format external-format)
-		 else (subseq text start end))))
+	    (setf (source part) text))
 
     (if* (and (not textp) (not attachmentp) (not multipart))
        then (setf (disposition part) "inline"))
@@ -206,6 +218,14 @@ v1: Improve default transfer encoding determination."
     
     part))
 
+(defun 8-bit-array-p (usb8)
+  (declare (optimize (speed 3) (safety 0))
+	   ((simple-array (unsigned-byte 8) (*)) usb8))
+  (dotimes (n (length usb8))
+    (declare (fixnum n))
+    (if (> (aref usb8 n) 127)
+	(return t))))
+
 (defparameter *ef-nick-to-mime-charset*
     '((:ascii . "us-ascii")
       (:iso-2022-jp . "iso-2022-jp")
@@ -223,7 +243,7 @@ v1: Improve default transfer encoding determination."
   (let ((ef-name (string-downcase (symbol-name (ef-name (crlf-base-ef ef))))))
     ;; Try iso-8559-x names.
     (multiple-value-bind (found ignore suffix)
-	(match-re (load-time-value "^iso8859-(\\d+)-base") ef-name)
+	(match-re "^iso8859-(\\d+)-base" ef-name)
       (declare (ignore ignore))
       (if found
 	  (return-from guess-charset-from-ef 
@@ -231,7 +251,7 @@ v1: Improve default transfer encoding determination."
     
     ;; Try windows- names.
     (multiple-value-bind (found whole value)
-	(match-re (load-time-value "^(\\d+)-base$") ef-name)
+	(match-re "^(\\d+)-base$" ef-name)
       (declare (ignore whole))
       (if found
 	  (return-from guess-charset-from-ef

@@ -1,3 +1,17 @@
+2006-11-16  Ahmon Dancy  <dancy@dancy>
+
+	bug16495: 
+	  
+	* smtp.cl: send-smtp-1: New external-format keyword arg.
+                                Now processes input in terms of bytes
+	                        instead of characters.  
+
+	* mime-api.cl: make-mime-part: Default external-format is :utf8
+	now.  Default encoding changed once again.  Now always base64,
+	except for when :text is supplied and is stringp, in which case
+	the encoded version of the string is examined to see if 7bit can
+	be used).
+
 2006-10-18  Ahmon Dancy  <dancy@dancy>
 
 	* mime-api.cl: bug16479: Improve default content-transfer-encoding
