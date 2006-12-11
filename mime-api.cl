@@ -1,8 +1,9 @@
 #+(version= 8 0)
-(sys:defpatch "mime" 2
+(sys:defpatch "mime" 3
   "v0: New module.  See documentation.;
 v1: Improve default transfer encoding determination;
-v2: make-mime-part: Default external-format is :utf8."
+v2: make-mime-part: Default external-format is :utf8;
+v3: add mime structure parsing support."
   :type :system
   :post-loadable t)
 
@@ -14,7 +15,7 @@ v2: make-mime-part: Default external-format is :utf8."
   :type :system
   :post-loadable t)
 
-;; $Id: mime-api.cl,v 1.4 2006/11/17 00:32:07 layer Exp $
+;; $Id: mime-api.cl,v 1.5 2006/12/11 22:45:38 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -24,6 +25,7 @@ v2: make-mime-part: Default external-format is :utf8."
    #:mime-part-writer
    #:mime-part-p
    #:mime-part-constructed-p
+   #:map-over-parts
    
    ;; macros
    #:mime-get-header
@@ -329,6 +331,17 @@ This is a multi-part message in MIME format.~%"))
 (defmacro with-mime-part-constructed-stream ((stream part) &body body)
   `(excl::with-function-input-stream (,stream #'mime-part-writer-1 ,part)
      ,@body))
+
+
+;; misc
+
+(defun map-over-parts (part function)
+  (funcall function part)
+  (if* (multipart-p part)
+     then (dolist (p (mime-part-parts part))
+	    (map-over-parts p function))
+   elseif (message-rfc822-p (mime-part-type part) (mime-part-subtype part))
+     then (map-over-parts (mime-part-message part) function)))
 
 ;; Stuff ripped off from aserve
 

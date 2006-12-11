@@ -1,10 +1,11 @@
-;; $Id: mime-parse.cl,v 1.1 2006/01/26 23:53:27 dancy Exp $
+;; $Id: mime-parse.cl,v 1.2 2006/12/11 22:45:38 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
   (:export
    #:parse-mime-structure
    #:mime-dequote
+   #:with-part-stream
    
    ;; accessors
    #:mime-part-headers-size
@@ -24,10 +25,11 @@
 (eval-when (compile)
   (declaim (optimize (speed 3))))
 
+(eval-when (compile load eval)
+  (require :streamp))
+
 ;;; MIME structure parser.
 ;;; Ref: RFC2045/2046
-
-(defconstant *whitespace* '(#\space #\tab #\return #\newline))
 
 (defclass mime-part-parsed (mime-part)
   (
@@ -45,20 +47,22 @@
     ;; This will be a mime-part
     :accessor mime-part-message :initform nil)))
 
-(excl::defresource mime-line 
-  :constructor (lambda () (make-array 16000 :element-type 'character
-				      :fill-pointer 0))
-  :reinitializer (lambda (x) (setf (fill-pointer x) 0)))
+(defmacro get-header (name headers)
+  `(cdr (assoc ,name ,headers :test #'equalp)))
 
-;; Return values:
-;;  First is the part.  
-;;  Second is :eof if end of file was reached or
-;;            :boundary if a boundary was reached
-;;            nil, otherwise
-;;  Third is new position
-(defun parse-mime-structure (stream &key boundary digest (pos 0) mbox)
-  (parse-mime-structure-1 stream boundary digest pos mbox))
+(defun parse-mime-structure (stream &key mbox)
+  (multiple-value-bind (part stop newpos)
+      (parse-mime-structure-1 stream nil nil 0 mbox)
+    (declare (ignore stop))
+    (values part newpos)))
 
+;; Returns values:
+;; 1) The part
+;; 2) The stop reason (:eof, :close-boundary, nil (meaning regular boundary))
+;; 3) The new position
+
+;: mime-parse-message-rfc822, parse-mime-structure, mime-parse-multipart
+;: 
 (defun parse-mime-structure-1 (stream boundary digest pos mbox)
   (let ((part (make-instance 'mime-part-parsed)))
     (setf (mime-part-position part) pos)
@@ -70,45 +74,54 @@
       (setf (mime-part-body-position part) pos)
       (setf (mime-part-headers part) headers)
       
-      (let ((content-type (mime-get-header "content-type" part)))
-	(setf (mime-part-id part) (mime-get-header "Content-Id" part))
+      (let ((content-type (get-header "content-type" headers)))
+	(setf (mime-part-id part) (get-header "Content-Id" headers))
 	(setf (mime-part-description part) 
-	  (mime-get-header "Content-description" part))
+	  (get-header "Content-description" headers))
 	(setf (mime-part-encoding part) 
-	  (or (mime-get-header "Content-transfer-encoding" part)
+	  (or (get-header "Content-transfer-encoding" headers)
 	      "7bit"))
 	
 	(multiple-value-bind (type subtype params)
 	    (parse-content-type content-type)
 	  
 	  (if* (null type)
-	     then
-		  (if* digest
-		     then
-			  (setf (mime-part-type part) "message")
+	     then (if* digest
+		     then (setf (mime-part-type part) "message")
 			  (setf (mime-part-subtype part) "rfc822")
 			  (setf (mime-part-parameters part) 
 			    '(("charset" . "us-ascii")))
 			  (mime-parse-message-rfc822 part stream boundary pos
 						     mbox)
-		     else
-			  (setup-text-plain-part part stream boundary pos mbox))
-	     else
-		  (setf (mime-part-type part) type)
+		     else (setup-text-plain-part part stream boundary pos 
+						 mbox))
+	     else (setf (mime-part-type part) type)
 		  (setf (mime-part-subtype part) subtype)
 		  (setf (mime-part-parameters part) params)
 		  
 		  (cond 
 		   ((equalp type "multipart")
-		    (mime-parse-multipart part stream boundary pos mbox))
+		    (mime-parse-multipart part stream boundary pos 
+					  mbox))
 		   ((message-rfc822-p type subtype)
-		    (mime-parse-message-rfc822 part stream boundary pos mbox))
+		    (mime-parse-message-rfc822 part stream boundary pos 
+					       mbox))
 		   (t
-		    (mime-parse-non-multipart part stream boundary pos mbox)))))))))
+		    (mime-parse-non-multipart part stream boundary pos 
+					      mbox)))))))))
+
+;: skip-whitespace, parse-header-line, parse-headers
+;: 
+(defmacro whitespace-char-p (char)
+  (let ((c (gensym)))
+    `(let ((,c ,char))
+       (or (char= ,c #\space) (char= ,c #\tab) (char= ,c #\newline)))))
 
 ;; OK if 'string' is nil.
 ;; Might return nil
 ;; called by parse-mime-structure-1
+;: parse-mime-structure-1
+;: 
 (defun parse-content-type (string)
   (block nil
     (if (null string)
@@ -122,7 +135,7 @@
       
       (setf pos (skip-whitespace string pos max))
       
-      (if (or (>= pos max) (char/= (char string pos) #\/))
+      (if (or (>= pos max) (char/= (schar string pos) #\/))
 	  (return)) ;; bogus input
       
       (multiple-value-setq (subtype pos)
@@ -133,12 +146,18 @@
       
       (values type subtype (parse-parameters string pos max)))))
 
+
+
+
+
 ;; called by parse-content-type.
+;: parse-content-type
+;: 
 (defun parse-parameters (string pos max)
   (let (char pairs param value)
     (while (< pos max)
       (setf pos (skip-whitespace string pos max))
-      (setf char (char string pos))
+      (setf char (schar string pos))
       
       (if (char/= char #\;)
 	  (return))
@@ -146,7 +165,7 @@
       (multiple-value-setq (param pos)
 	(mime-get-token string (1+ pos) max))
       (setf pos (skip-whitespace string pos max))
-      (if (or (>= pos max) (char/= (char string pos) #\=))
+      (if (or (>= pos max) (char/= (schar string pos) #\=))
 	  (return))
       (multiple-value-setq (value pos)
 	(mime-get-parameter-value string (1+ pos) max))
@@ -160,59 +179,62 @@
       #\, #\; #\: #\\ #\" 
       #\/ #\[ #\] #\? #\=))
 
+;: parse-content-type, parse-parameters, mime-get-parameter-value
+;: mime-get-token, blank-line-p, parse-header-line
+;: 
 (defun skip-whitespace (string pos max)
-  (declare (optimize (speed 3))
+  (declare (optimize (speed 3) (safety 0))
 	   (fixnum pos max))
   (while (< pos max)
-    (if (not (excl::whitespace-char-p (schar string pos)))
+    (if (not (whitespace-char-p (schar string pos)))
 	(return))
     (incf pos))
   pos)
 
+;: parse-parameters
+;: 
 (defun mime-get-parameter-value (string pos max)
   (setf pos (skip-whitespace string pos max))
   (if* (>= pos max)
-     then
-	  (values "" pos)
-     else
-	  (if (char= (char string pos) #\")
+     then (values "" pos)
+     else (if (char= (schar string pos) #\")
 	      (mime-get-quoted-string string pos max)
 	    (mime-get-token string pos max))))
 
+;: parse-content-type, parse-parameters, mime-get-parameter-value
+;: 
 (defun mime-get-token (string pos max)
   (setf pos (skip-whitespace string pos max))
   (let ((startpos pos)
 	char)
     (while (< pos max)
-      (setf char (char string pos))
+      (setf char (schar string pos))
       (if (or (char= #\space char) (member char *mime-tspecials*))
 	  (return))
       (incf pos))
     (values (subseq string startpos pos) pos)))
 
 ;; Doesn't attempt to dequote
+;: mime-get-parameter-value
+;: 
 (defun mime-get-quoted-string (string pos max)
   (let ((res (make-string (- max pos)))
 	(outpos 0)
 	char inquote inbackslash)
     (while (< pos max)
-      (setf char (char string pos))
+      (setf char (schar string pos))
       
-      (if* (and (char= char #\") (not inbackslash))
-	 then
-	      (if* inquote
-		 then
-		      (setf (schar res outpos) char)
-		      (incf outpos)
-		      (incf pos)
-		      (return))
-	      (setf inquote t))
-
+      (when (and (char= char #\") (not inbackslash))
+	(if* inquote
+	   then	(setf (schar res outpos) char)
+		(incf outpos)
+		(incf pos)
+		(return))
+	(setf inquote t))
+      
       (if* inbackslash
-	 then
-	      (setf inbackslash nil)
-	 else
-	      (if (char= char #\\)
+	 then (setf inbackslash nil)
+	 else (if (char= char #\\)
 		  (setf inbackslash t)))
       
       (setf (schar res outpos) char)
@@ -221,9 +243,11 @@
     
     (values (subseq res 0 outpos) pos)))
 
+;; mime-parse-multipart
+;: 
 (defun mime-dequote (string)
   (block nil
-    (if (or (string= string "") (char/= (char string 0) #\"))
+    (if (or (string= string "") (char/= (schar string 0) #\"))
 	(return string))
     
     (let* ((max (length string))
@@ -233,40 +257,44 @@
 	   char inbackslash)
       
       (while (< pos max)
-	(setf char (char string pos))
+	(setf char (schar string pos))
 	
 	(if (and (char= char #\") (not inbackslash))
 	    (return))
 	
 	(if* (and (not inbackslash) (char= char #\\))
-	   then
-		(setf inbackslash t)
+	   then	(setf inbackslash t)
 		(incf pos)
-	   else
-		(setf (schar res outpos) char)
+	   else	(setf (schar res outpos) char)
 		(incf outpos)
 		(incf pos)
 		(setf inbackslash nil)))
       
       (subseq res 0 outpos))))
 
+;: parse-mime-structure-1
+;: 
 (defun setup-text-plain-part (part stream boundary pos mbox)
   (setf (mime-part-type part) "text")
   (setf (mime-part-subtype part) "plain")
   (setf (mime-part-parameters part) '(("charset" . "us-ascii")))
   (mime-parse-non-multipart part stream boundary pos mbox))
 
+;: setup-text-plain-part, parse-mime-structure-1
+;: 
 (defun mime-parse-non-multipart (part stream boundary pos mbox)
   (let ((startpos pos))
-    (multiple-value-bind (endpos lines eof pos)
+    (multiple-value-bind (size lines eof pos)
 	(read-until-boundary stream boundary pos mbox)
       
       (setf (mime-part-lines part) lines)
       (setf (mime-part-body-position part) startpos)
-      (setf (mime-part-body-size part) (- endpos startpos))
+      (setf (mime-part-body-size part) size)
       
       (values part eof pos))))
 
+;: parse-mime-structure-1
+;: 
 (defun mime-parse-message-rfc822 (part stream boundary pos mbox)
   (let ((startpos pos))
     (multiple-value-bind (message eof pos)
@@ -280,6 +308,8 @@
       (values part eof pos))))
   
 
+;: parse-mime-structure-1
+;: 
 (defun mime-parse-multipart (part stream parent-boundary pos mbox)
   (let* ((params (mime-part-parameters part))
 	 (boundary (cdr (assoc "boundary" params :test #'equalp)))
@@ -317,152 +347,295 @@
       (setf (mime-part-body-size part) (- pos startpos))
       
       (values part eof pos))))
+
+
 ;; support
 
-;; Returns headers alist and the number of bytes read.
+(defconstant *whitespace* '(#\space #\tab #\return #\newline))
+
+
+;: parse-headers
+;: 
+(defun blank-line-p (line len)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum len))
+  (= len (skip-whitespace line 0 len)))
+
+;: parse-headers
+;: 
+(defun parse-header-line (line len)
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((pos 0)
+	colonpos
+	spacepos)
+    (declare (fixnum len pos spacepos))
+    
+    (while (< pos len)
+      (let ((char (schar line pos))) 
+	(when (char= char #\:)
+	  (setf colonpos pos)
+	  (return))
+	
+	(if (and (null spacepos) (whitespace-char-p char))
+	    (setf spacepos pos)))
+      
+      (incf pos))
+ 
+    (if (null colonpos) ;; bogus header line
+	(return-from parse-header-line))
+    
+    (if (null spacepos)
+	(setf spacepos colonpos))
+    
+    (if (= 0 spacepos) ;; bogus header line (no name)
+	(return-from parse-header-line))
+    
+    (values (subseq line 0 spacepos)
+	    (subseq line (skip-whitespace line (1+ colonpos) len) len))))
+
+;; Returns offset of end of line in buffer.  Or nil if EOF
+;; Second value is the number of characters read (including EOL chars)
+;; This is slower than a read-line call, but in the long run can
+;; lead to big savings in gc time.
+;: parse-headers, read-until-boundary, collect-message-data-from-mbox
+;: 
+(defun mime-read-line (stream buffer)
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((pos 0)
+	(end (length buffer))
+	(count 0)
+	char)
+    (declare (fixnum pos end count))
+    
+    (while (and (< pos end) (setf char (read-char stream nil nil)))
+      (incf count)
+      (if (char= char #\newline)
+	  (return))
+      (setf (schar buffer pos) char)
+      (incf pos))
+    
+    (if* (= count 0)
+       then nil ;; EOF
+       else ;; Check for CR/LF combo
+	    (if (and (> pos 0) (char= (schar buffer (1- pos)) #\return))
+		(decf pos))
+	    
+	    (values pos count))))
+	    
+
+;; Returns:
+;; 1) headers alist
+;; 2) # of characters composing the header and terminator.
+;:
+;: parse-mime-structure-1
+;: 
 (defun parse-headers (stream mbox)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((count 0) headers colonpos name value)
-    (excl::with-resource (line mime-line)
-      (loop
-	(let ((bytes (mime-read-line line stream mbox)))
-	  (if (null bytes)
-	      (return))
-	  
-	  (incf count bytes)
+  (let ((count 0)
+	(line (make-array 1024 :element-type 'character))
+	headers 
+	lastcons
+	current)
+    (declare (fixnum count)
+	     (dynamic-extent line))
 
-	  (mime-line-string-right-trim line)
-	  (if (string= line "")
-	      (return))
+    (loop
+      (multiple-value-bind (end bytes)
+	  (mime-read-line stream line)
+	(declare (fixnum end))
 	
-	  ;; Continuation line
-	  (if* (and (excl::whitespace-char-p (char line 0)) headers)
-	     then ;; yes
-		  (setf (cdr (car headers)) 
-		    (concatenate 'string (cdr (car headers)) " "
-				 (string-left-trim *whitespace* line)))
-	     else (setf colonpos (position #\: line))
-		  (if (null colonpos) ;; bogus input
-		      (return))
-		  (setf name 
-		    (string-trim *whitespace* (subseq line 0 colonpos)))
-		  (let ((startpos (position-if-not #'excl::whitespace-char-p
-					       line :start (1+ colonpos))))
-		    (setf value 
-		      (if* (null startpos)
-			 then ""
-			 else (subseq line startpos))))
+	(if (or (null end)
+		(and mbox (my-prefixp "From " line end)))
+	    (return))
 
-		  (push (cons name value) headers)))))
+	(incf count bytes)
+	
+	(if (blank-line-p line end)
+	    (return))
+	
+	(if* (whitespace-char-p (schar line 0))
+	   then ;; Continuation line
+		(if (null current)
+		    (return)) 
+	      
+		(let ((newcons (cons (subseq line 0 end) nil)))
+		  (setf (cdr lastcons) newcons)
+		  (setf lastcons newcons))
+	      
+	   else ;; Fresh header line
+		(multiple-value-bind (name value)
+		    (parse-header-line line end)
+		  (if (null name)
+		      (return)) 
+		
+		  (setf lastcons (cons value nil))
+		  (setf current (cons name lastcons))
+		  (push current headers)))))
+
+    ;; Finalize strings.
+    (dolist (header headers)
+      (setf (cdr header) (coalesce-header header)))
     
     (values (nreverse headers) count)))
 
-;; Returns: (1) position of the end of the part
-;;          (2) number of lines read
-;;          (3) :eof if EOF, :boundary if close delimiter was seen, else nil
-;;          (4) new stream position (post boundary read)
-(defun read-until-boundary (stream boundary pos mbox)
-  (let ((lines 0)
-	(lastpos pos)
-	bytes delimiter close-delimiter)
-    
-    (excl::with-resource (line mime-line)
-    
-      (when boundary
-	(setf delimiter (concatenate 'string "--" boundary))
-	(setf close-delimiter (concatenate 'string delimiter "--")))
-      
-      (loop
-	(setf bytes (mime-read-line line stream mbox))
-	
-	(if (or (null bytes)
-		(and delimiter (prefixp delimiter line)))
-	    (return))
-	
-	(incf pos bytes)
-	
-	(setf lastpos pos)
-	(incf lines))
-      
-      (values lastpos 
-	      lines
-	      (cond ((null bytes)
-		     :eof)
-		    ((and close-delimiter (prefixp close-delimiter line))
-		     :boundary)
-		    (t nil))
-	      pos))))
-
-;; Returns values:
-;; Number of characters read, including CR/LFs. Returns nil if EOF.
-(defun mime-read-line (buffer stream mbox)
+;: parse-headers
+;: 
+(defun coalesce-header (header)
   (declare (optimize (speed 3) (safety 0)))
-  (excl::with-underlying-simple-vector (buffer sbuf)
-    (declare (type string sbuf))
-    (let* ((pos 0)
-	   (count 0)
-	   (max (array-dimension buffer 0))
-	   (crlf (eq (eol-convention stream) :dos))
-	   char)
-      (declare (fixnum pos count max))
-      (while (and (< pos max) (setf char (read-char stream nil nil)))
-	(incf count)
-	(when (char= char #\newline)
-	  (if crlf
-	      (incf count)) ;; account for carriage return as well
+  (let ((stringlist (cdr header)))
+    (if* (= (length stringlist) 1)
+       then (first stringlist)
+       else (let ((len 0))
+	      (declare (fixnum len))
+	      (dolist (string stringlist)
+		(incf len (1+ (the fixnum (length string)))))
+	      (decf len)
+	      (let ((res (make-string len))
+		    (pos 0)
+		    (first t))
+		(declare (fixnum pos))
+		(dolist (string stringlist)
+		  (if* first
+		     then (setf first nil)
+		     else (setf (schar res pos) #\newline)
+			  (incf pos))
+		  (dotimes (n (length string))
+		    (declare (fixnum n))
+		    (setf (schar res pos) (schar string n))
+		    (incf pos)))
+		res)))))
+
+;; Returns: (1) size of part 
+;;          (2) number of lines read
+;;          (3) stop reason (:eof, :close-boundary, or nil (meaning regular
+;;                                                          boundary)
+;;          (4) new stream position (post boundary read)
+;: mime-parse-multipart, mime-parse-non-multipart
+;: 
+(defun read-until-boundary (stream boundary pos mbox)
+  (declare (optimize (speed 3) (safety 0))
+	   (fixnum pos))
+  (if* (and (null boundary) (null mbox))
+     then 
+	  (multiple-value-bind (lines count)
+	      (count-lines-to-eof stream)
+	    (declare (fixnum count))
+	    (values count lines :eof (+ pos count)))
+     else 
+	  (let ((line (make-array 16000 :element-type 'character))
+		(size 0)
+		(lines 0)
+		(stop-reason :eof)
+		delimiter close-delimiter)
+	    (declare (dynamic-extent line)
+		     (fixnum count size lines))
+	    
+	    (when boundary
+	      (setf delimiter (concatenate 'string "--" boundary))
+	      (setf close-delimiter (concatenate 'string delimiter "--")))
+	    
+	    (loop
+	      (multiple-value-bind (end bytes)
+		  (mime-read-line stream line)
+		(declare (fixnum end bytes))
+		
+		(if (or (null end)
+			(and mbox (my-prefixp "From " line end)))
+		    (return))
+		
+		(incf pos bytes)
+		
+		(when (my-prefixp delimiter line end)
+		  (if* (my-prefixp close-delimiter line end)
+		     then (setf stop-reason :close-boundary)
+		     else (setf stop-reason nil))
+		  (return))
+		
+		(incf size bytes)
+		(incf lines))) 
+	    
+	    (values size lines stop-reason pos))))
+
+;; Returns:
+;; 1) number of lines
+;; 2) number of bytes read
+;: read-until-boundary
+;: 
+(defun count-lines-to-eof (stream)
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((buffer (make-array 65536 :element-type '(unsigned-byte 8)))
+	(lines 0)
+	(pos 0)
+	(lastbyte -1)
+	(count 0)
+	end)
+    (declare (dynamic-extent buffer)
+	     (fixnum lines pos end lastbyte count))
+    ;; count 10's
+    ;; XXX: The count will be off if the file has CR/LF convention and
+    ;; there are bare LFs.  
+    (loop
+      (setf end (read-vector buffer stream))
+      (incf count end)
+      
+      (if (= end 0)
 	  (return))
-	
-	(setf (schar sbuf pos) char)
+      
+      (while (< pos end)
+	(if (= (aref buffer pos) 10)
+	    (incf lines))
 	(incf pos))
       
-      (setf (fill-pointer buffer) pos)
-
-      ;; Treat mbox "From " line as EOF 
-      (if (and mbox (prefixp "From " buffer))
-	  (setf count 0))
-      
-      (if (/= count 0) count))))
-
-(defun mime-line-string-right-trim (line)
-  (let ((pos (position-if-not #'excl::whitespace-char-p line :from-end t)))
-    (if pos
-	(setf (fill-pointer line) (1+ pos)))))
-
-;;; body streams stuff
-
-(defun body-stream-func (outstream instream boundary)
-  (let ((delimiter (if boundary (concatenate 'string "--" boundary)))
-	line)
+      (setf lastbyte (aref buffer (1- pos))))
     
-    (while (setf line (read-line instream nil nil))
-      (if (and delimiter (prefixp delimiter line))
-	  (return))
-      
-      (write-line line outstream))))
+    ;; Count last partial line.
+    (if (and (> lastbyte 0) (/= lastbyte 10))
+	(incf lines))
+    
+    (values lines count)))
 
-(defun body-stream-func-with-count (outstream instream count)
+(defun my-prefixp (prefix string &optional end)
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((lenprefix (length prefix))
+	(end (or end (length string))))
+    (declare (fixnum lenprefix lenstring end))
+    (when (>= end lenprefix)
+      (dotimes (n lenprefix)
+	(declare (fixnum n))
+	(if (char/= (schar prefix n) (schar string n))
+	    (return-from my-prefixp)))
+      t)))
+
+;;; misc
+
+(defun stream-to-stream-copy (outstream instream count)
   (declare (optimize (speed 3))
 	   (fixnum count))
-  (let (char)
-    (dotimes (n count)
-      (declare (fixnum n))
-      (setf char (read-char instream nil nil))
-      (if* (null char)
-	 then (return)
-	 else (write-char char outstream)))))
+  (let ((buf (make-array 4096 :element-type '(unsigned-byte 8))))
+    (declare (dynamic-extent buf))
+    (while (> count 0)
+      (let ((got (read-sequence buf instream :end (min count 4096))))
+	(declare (fixnum got))
+	(if (zerop got)
+	    (error "Unexpected EOF while reading from ~a" instream))
+	(write-sequence buf outstream :end got)
+	(decf count got)))))
 
+;; 'instream' must be positioned appropriately by the caller beforehand.
+(defmacro with-part-stream ((sym part instream &key (header t)) &body body)
+  (let ((p (gensym))
+	(stream (gensym))
+	(count (gensym)))
+    `(let* ((,p ,part)
+	    (,stream ,instream)
+	    (,count (mime-part-body-size ,p)))
+       (if ,header
+	   (incf ,count (mime-part-headers-size ,p)))
+       (excl:with-function-input-stream 
+	   (,sym #'stream-to-stream-copy ,stream ,count)
+	 ,@body))))
+	 
 
-(defmacro with-part-body-stream ((sym instream part &key count) &body body)
-  (if* count
-     then
-	  `(with-function-input-stream (,sym #'body-stream-func-with-count
-					     ,instream ,count)
-	     ,@body)
-     else
-	  `(with-function-input-stream (,sym #'body-stream-func
-					     ,instream 
-					     (mime-part-boundary ,part))
-	     ,@body)))
 
 ;;; testing
 
