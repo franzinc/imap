@@ -1,5 +1,7 @@
 2006-12-19  Kevin Layer  <layer@gemini.franz.com>
 
+	* rfc2822.cl: :net.mail package, defpatch
+	
 	* (NEW) rfc2822.cl: new file, authored by Ahmon -- only change I
 	  made was to make sure the regular expressions are compiled at
 	  compile-file time.

@@ -1,4 +1,15 @@
-(in-package :user)
+#+(version= 8 0)
+(sys:defpatch "rfc2822" 0
+  "v0: New module.  See documentation."
+  :type :system
+  :post-loadable t)
+
+(defpackage :net.mail
+  (:use #:lisp #:excl)
+  (:export #:parse-email-address
+	   #:valid-email-domain-p))
+
+(in-package :net.mail)
 
 #|
 Email address parser.  If parsing succeeds, then the email address
