@@ -1,8 +1,11 @@
-;; $Id: mime-transfer-encoding.cl,v 1.4 2006/12/11 22:45:38 layer Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.5 2006/12/21 18:22:15 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
-  (:import-from #:excl #:base64-encode-stream #:base64-decode-stream)
+  (:import-from #:excl #:base64-encode-stream
+		#+(or (version= 8 0)
+		      (version>= 8 1 pre-beta 4))
+		#:base64-decode-stream)
   (:export
    #:base64-encode-stream
    #:base64-decode-stream
