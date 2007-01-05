@@ -1,4 +1,4 @@
-;; $Id: mime-transfer-encoding.cl,v 1.5 2006/12/21 18:22:15 layer Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.6 2007/01/05 21:31:25 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -95,93 +95,101 @@
 
 ;; Decoding stuff
 
+
+;; Used by qp-decode-stream
+(defconstant *qp-digit-values*
+    #.(let ((arr (make-array 257 :element-type 'fixnum)))
+	(dotimes (n 256)
+	  (setf (aref arr n)
+	    (if* (<= (char-code #\0) n (char-code #\9))
+	       then (- n (char-code #\0))
+	     elseif (<= (char-code #\A) n (char-code #\F))
+	       then (- n (- (char-code #\A) 10))
+	       else -1)))
+	(setf (aref arr 256) -2)
+	arr))
+
+
+(defun qp-decode-stream (instream outstream &key count)
+  (declare (optimize (speed 3)))
+  
+  (let (unread-buf)
+  
+    (macrolet ((unread (byte)
+		 `(progn
+		    (setf unread-buf ,byte)
+		    (if count
+			(incf count))))
+	       (get-byte (&key eof-value)
+		 `(block get-byte
+		    (if* count
+		       then (if (zerop count)
+				(return-from get-byte ,eof-value))
+			    (decf count))
+		    (if* unread-buf
+		       then (prog1 unread-buf
+			      (setf unread-buf nil))
+		       else (read-byte instream nil ,eof-value))))
+	       (out (byte)
+		 `(write-byte ,byte outstream))
+	       (eol-p (byte)
+		 `(or (eq ,byte 10) (eq ,byte 13))))
+	       
+      (let (byte)
+	(while (setf byte (get-byte))
+	  (if* (eq byte #.(char-code #\=))
+	     then (let ((nextbyte (get-byte)))
+		    (if* (null nextbyte)
+		       then ;; stray equal sign.  just dump and terminate.
+			    (out byte)
+			    (return))
+		    (if* (eol-p nextbyte)
+		       then ;; soft line break.  
+			    (if (eq nextbyte 13) ;; CR
+				(setf nextbyte (get-byte)))
+			    (if (not (eq nextbyte 10)) ;; LF
+				(unread nextbyte))
+		       else ;; =XY encoding
+			    (let* ((byte3 (get-byte :eof-value 256))
+				   (high (aref *qp-digit-values* nextbyte))
+				   (low (aref *qp-digit-values* byte3))
+				   (value (logior (the fixnum (ash high 4)) low)))
+			      (declare (fixnum byte3 high low value))
+			      (if* (< value 0)
+				 then ;; Invalid or truncated encoding. just dump it.
+				      (out byte)
+				      (out nextbyte)
+				      (if* (eq low -2) ;; EOF
+					 then (return)
+					 else (out byte3))
+				 else (out value)))))
+	     else (out byte)))
+	
+	t))))
+
 ;; 'instream' must be positioned at the beginning of the part body 
 ;; by the caller beforehand.
 (defmacro with-decoded-part-body-stream ((sym part instream) &body body)
-  (let ((bodystream (gensym))
-	(p (gensym))
-	(encoding (gensym)))
+  (let ((p (gensym))
+	(encoding (gensym))
+	(count (gensym)))
     `(let* ((,p ,part)
-	    (,encoding (mime-part-encoding ,p)))
-       (with-part-stream (,bodystream ,p ,instream :header nil)
-	 (excl:with-function-input-stream (,sym #'mime-decode-transfer-encoding
-						,bodystream
-						,encoding)
-	   ,@body)))))
+	    (,encoding (mime-part-encoding ,p))
+	    (,count (mime-part-body-size ,p)))
+       (excl:with-function-input-stream (,sym #'mime-decode-transfer-encoding
+					      ,instream
+					      ,encoding
+					      ,count)
+	 ,@body))))
 					  
-(defun mime-decode-transfer-encoding (outstream instream encoding)
-  (funcall 
-   (cond
-    ((equalp encoding "quoted-printable")
-     #'qp-decode-stream)
-    ((equalp encoding "base64")
-     #'excl::base64-decode-stream)
-    (t
-     #'sys:copy-file))
-   instream outstream))
-
-(defun qp-decode-stream (instream outstream)
-  (declare (optimize (speed 3)))
-  (let ((linebuf (make-array 4096 :element-type 'character))
-	pos char char2 softlinebreak)
-    (declare (dynamic-extent linebuf)
-	     (fixnum pos))
+(defun mime-decode-transfer-encoding (outstream instream encoding count)
+  (cond
+   ((equalp encoding "quoted-printable")
+    (qp-decode-stream instream outstream :count count))
+   ((equalp encoding "base64")
+    (excl:base64-decode-stream instream outstream :count count :error-p nil))
+   (t
+    ;; defined in mime-parse.cl
+    (stream-to-stream-copy outstream instream count))))
     
-    (loop
-      (multiple-value-bind (line dummy max)
-	  (simple-stream-read-line instream nil nil linebuf)
-	(declare (ignore dummy)
-		 (fixnum max)
-		 (simple-string line))
-	(if (null line)
-	    (return))
-	
-	(if (null max)
-	    (setf max (length line)))
-	
-	(setf pos 0)
-	
-	(macrolet ((getchar () 
-		     `(if (< pos max)
-			  (prog1 (schar line pos) (incf pos))))
-		   (decode-dig (char)
-		     `(the (integer 0 256) (decode-qp-hex-digit ,char))))
-		   
-	  (while (< pos max)
-	    (setf char (getchar))
-	    
-	    (if* (eq char #\=)
-	       then ;; Check for soft line break.
-		    (if* (= pos max)
-		       then (setf softlinebreak t)
-		       else (setf char (getchar))
-			    (setf char2 (getchar))
-			    
-			    (let ((value (logior 
-					  (ash (decode-dig char) 4)
-					  (decode-dig char2))))
-			      (if* (< value 256)
-				 then (write-byte value outstream)
-				 else ;; We got some bogus input.  
-				      ;; Leave it untouched
-				      (write-char #\= outstream)
-				      (if char
-					  (write-char char outstream))
-				      (if char2
-					  (write-char char2 outstream)))))
-	       else (write-char char outstream)))
-	  ;; outside 'while' loop.
-	
-	  (if* softlinebreak
-	     then (setf softlinebreak nil)
-	     else (write-char #\newline outstream)))))))
-
-
-(defun decode-qp-hex-digit (char)
-  (declare (optimize (speed 3) (safety 0) (debug 0)))
-  (if* (char<= #\0 char #\9)
-     then (- (the (integer 0 255) (char-code char)) #.(char-code #\0))
-   elseif (char<= #\A char #\F)
-     then (- (the (integer 0 255) (char-code char)) #.(- (char-code #\A) 10))
-     else 256))
 

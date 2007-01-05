@@ -1,3 +1,7 @@
+2007-01-05  Ahmon Dancy  <dancy@dancy>
+
+	* mime-transfer-encoding.cl: Added qp-decode-stream.
+
 2006-12-21  Kevin Layer  <layer@gemini.franz.com>
 
 	* mime-transfer-encoding.cl: fix for building on 8.1.pre-beta.3
