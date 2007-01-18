@@ -1,3 +1,8 @@
+2007-01-18  Kevin Layer  <layer@gemini.franz.com>
+
+	* mime-transfer-encoding.cl: adjust use of
+	  excl:base64-decode-stream so we can compile on 8.1.pre-beta.3
+
 2007-01-05  Ahmon Dancy  <dancy@dancy>
 
 	* mime-transfer-encoding.cl: Added qp-decode-stream.

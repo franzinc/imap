@@ -1,9 +1,10 @@
-;; $Id: mime-transfer-encoding.cl,v 1.6 2007/01/05 21:31:25 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.7 2007/01/18 19:22:48 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
   (:import-from #:excl #:base64-encode-stream
-		#+(or (version= 8 0)
+		#+(or (version= 7 0)
+		      (version= 8 0)
 		      (version>= 8 1 pre-beta 4))
 		#:base64-decode-stream)
   (:export
@@ -186,6 +187,9 @@
   (cond
    ((equalp encoding "quoted-printable")
     (qp-decode-stream instream outstream :count count))
+   #+(or (version= 7 0)
+	 (version= 8 0)
+	 (version>= 8 1 pre-beta 4))
    ((equalp encoding "base64")
     (excl:base64-decode-stream instream outstream :count count :error-p nil))
    (t
