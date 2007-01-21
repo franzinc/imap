@@ -1,3 +1,8 @@
+2007-01-20  Duane Rettig  <duane@franz.com>
+
+	* mime-transfer-encoding.cl: One more adjustment to
+	  excl:base64-decode-stream so we can compile on 8.1.pre-beta.4
+
 2007-01-18  Kevin Layer  <layer@gemini.franz.com>
 
 	* mime-transfer-encoding.cl: adjust use of

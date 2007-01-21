@@ -1,11 +1,11 @@
-;; $Id: mime-transfer-encoding.cl,v 1.7 2007/01/18 19:22:48 layer Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.8 2007/01/21 07:58:40 duane Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
   (:import-from #:excl #:base64-encode-stream
 		#+(or (version= 7 0)
 		      (version= 8 0)
-		      (version>= 8 1 pre-beta 4))
+		      (version>= 8 1 pre-beta 5))
 		#:base64-decode-stream)
   (:export
    #:base64-encode-stream
@@ -189,7 +189,7 @@
     (qp-decode-stream instream outstream :count count))
    #+(or (version= 7 0)
 	 (version= 8 0)
-	 (version>= 8 1 pre-beta 4))
+	 (version>= 8 1 pre-beta 5))
    ((equalp encoding "base64")
     (excl:base64-decode-stream instream outstream :count count :error-p nil))
    (t
