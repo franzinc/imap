@@ -1,4 +1,4 @@
-;; $Id: mime-parse.cl,v 1.2 2006/12/11 22:45:38 layer Exp $
+;; $Id: mime-parse.cl,v 1.3 2007/03/14 18:44:59 duane Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -528,7 +528,7 @@
 		(stop-reason :eof)
 		delimiter close-delimiter)
 	    (declare (dynamic-extent line)
-		     (fixnum count size lines))
+		     (fixnum size lines))
 	    
 	    (when boundary
 	      (setf delimiter (concatenate 'string "--" boundary))
@@ -598,7 +598,7 @@
   (declare (optimize (speed 3) (safety 0)))
   (let ((lenprefix (length prefix))
 	(end (or end (length string))))
-    (declare (fixnum lenprefix lenstring end))
+    (declare (fixnum lenprefix end))
     (when (>= end lenprefix)
       (dotimes (n lenprefix)
 	(declare (fixnum n))

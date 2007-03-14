@@ -1,3 +1,7 @@
+2007-03-14  Duane Rettig  <duane@franz.com>
+
+	* mime-parse.cl: Remove bogus declarations
+
 2007-01-20  Duane Rettig  <duane@franz.com>
 
 	* mime-transfer-encoding.cl: One more adjustment to
