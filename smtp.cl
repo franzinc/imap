@@ -43,7 +43,7 @@ v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.21 2006/11/17 00:32:07 layer Exp $
+;; $Id: smtp.cl,v 1.22 2007/04/12 23:58:15 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -127,6 +127,28 @@ v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
        ;;(declare (ignorable smtp-response))
        (case ,response-class
 	 ,@case-clauses))))
+
+(defmacro smtp-send-recv ((smtp-stream cmd smtp-response &optional response-code) &rest case-clauses)
+  (let ((stream (gensym))
+	(sent (gensym)))
+    `(let ((,stream ,smtp-stream)
+	   (,sent ,cmd))
+       (if* *smtp-debug*
+	  then (format *smtp-debug* "to smtp command: ~s~%" ,sent)
+	       (force-output *smtp-debug*))
+       (write-string ,sent ,stream)
+       (write-char #\return ,stream)
+       (write-char #\newline ,stream)
+       (force-output ,stream)
+       (macrolet ((smtp-transaction-error ()
+		    (list
+		     'error
+		     "SMTP transaction failed.  We said: ~s, and the server replied: ~s"
+		     (quote ,sent)
+		     (quote ,smtp-response))))
+	 
+	 (response-case (,stream ,smtp-response ,response-code)
+	   ,@case-clauses)))))
 
 (defvar *smtp-debug* nil)
 
@@ -264,13 +286,12 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
     (unwind-protect
 	(progn
 	  
-	  (smtp-command sock "MAIL from:<~a>" from)
-	  (response-case (sock msg)
+	  (smtp-send-recv (sock (format nil "MAIL from:<~a>" from) msg)
 	    (2 ;; cool
 	     nil
 	     )
-	    (t (error "Mail from command failed: ~s" msg)))
-
+	    (t (smtp-transaction-error)))
+	  
 	  (let ((tos (if* (stringp to) 
 			then (list to) 
 		      elseif (consp to)
@@ -278,18 +299,16 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 			else (error "to should be a string or list, not ~s"
 				    to))))
 	    (dolist (to tos)
-	      (smtp-command sock "RCPT to:<~a>" to)
-	      (response-case (sock msg)
+	      (smtp-send-recv (sock (format nil "RCPT to:<~a>" to) msg)
 		(2 ;; cool
 		 nil
 		 )
-		(t (error "rcpt to command failed: ~s" msg)))))
+		(t (smtp-transaction-error)))))
 	
-	  (smtp-command sock "DATA")
-	  (response-case (sock msg)
+	  (smtp-send-recv (sock "DATA" msg)
 	    (3 ;; cool
 	     nil)
-	    (t (error "Data command failed: ~s" msg)))
+	    (t (smtp-transaction-error)))
 	  
 	  
 	  
@@ -328,16 +347,11 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 			 
 	    (t (error "message not sent: ~s" msg)))
 
-	  ;; Hmmmm, this is not good.  Perhaps force-output on
-	  ;; *error-output* is what was intended?  I'm pretty sure that's
-	  ;; *not needed.
-	  #+ignore (force-output t)
-	  
-	  (smtp-command sock "QUIT")
-	  (response-case (sock msg)
+	  (smtp-send-recv (sock "QUIT" msg)
 	    (2 ;; cool
 	     nil)
-	    (t (error "quit failed: ~s" msg))))
+	    (t (smtp-transaction-error))))
+      ;; Cleanup
       (close sock))))
 
 (defun connect-to-mail-server (server login password)
@@ -403,8 +417,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 ;; This may need to be expanded in the future as we support
 ;; more of the features that EHLO responds with.
 (defun smtp-ehlo (sock our-name)
-  (smtp-command sock "EHLO ~A" our-name)
-  (response-case (sock msg)
+  (smtp-send-recv (sock (format nil "EHLO ~A" our-name) msg)
     (2 ;; ok
      ;; Collect the auth mechanisms.
      (multiple-value-bind (found whole mechs)
@@ -413,11 +426,10 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
        (if found
 	   mechs)))
     (t
-     (smtp-command sock "HELO ~A" our-name)
-     (response-case (sock msg)
+     (smtp-send-recv (sock (format nil "HELO ~A" our-name) msg)
        (2 ;; ok
 	nil)
-       (t (error "hello greeting failed: ~s" msg))))))
+       (t (smtp-transaction-error))))))
 
 (defun smtp-authenticate (sock server mechs login password)
   (let ((ctx (net.sasl:sasl-client-new "smtp" server
@@ -440,11 +452,11 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 	  (2 ;; server is satisfied.
 	   ;; Make sure the auth process really completed
 	   (if (not (net.sasl:sasl-conn-auth-complete-p ctx))
-	       (error "SMTP server indicated authentication complete  before mechanisms was satisfied"))
+	       (error "SMTP server indicated authentication complete before mechanisms was satisfied"))
 	   ;; It's all good.  
 	   (return)) ;; break from loop
 	  (t
-	   (error "SMTP authentication failed")))))
+	   (error "SMTP authentication failed: ~a" msg)))))
     
     ;; Reach here if authentication completed.
     ;; If a security layer was negotiated, return an encapsulated sock,
@@ -481,8 +493,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
     
       (unwind-protect
 	  (progn
-	    (smtp-command sock "VRFY ~a" name)
-	    (response-case (sock msg code)
+	    (smtp-send-recv (sock (format nil "VRFY ~a" name) msg code)
 	      (5
 	       (if* (eq code 550)
 		  then ; no such user
@@ -491,8 +502,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 		  else ;; otherwise we don't know
 		       (return-from test-email-address t)))
 	      (t (return-from test-email-address t)))
-	    (smtp-command sock "VRFY ~a" address)
-	    (response-case (sock msg code)
+	    (smtp-send-recv (sock (format nil "VRFY ~a" address) msg code)
 	      (5
 	       (if* (eq code 550)
 		  then ; no such user
