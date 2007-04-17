@@ -1,4 +1,20 @@
-;; $Id: mime-parse.cl,v 1.3 2007/03/14 18:44:59 duane Exp $
+;; -*- mode: common-lisp; package: net.post-office -*-
+;;
+;; copyright (c) 1999-2002 Franz Inc, Berkeley, CA - All rights reserved.
+;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
+;;
+;; This code is free software; you can redistribute it and/or
+;; modify it under the terms of the version 2.1 of
+;; the GNU Lesser General Public License as published by 
+;; the Free Software Foundation, as clarified by the AllegroServe
+;; prequel found in license-allegroserve.txt.
+;;
+;; This code is distributed in the hope that it will be useful,
+;; but without any warranty; without even the implied warranty of
+;; merchantability or fitness for a particular purpose.  See the GNU
+;; Lesser General Public License for more details.
+;;
+;; $Id: mime-parse.cl,v 1.4 2007/04/17 22:01:42 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)

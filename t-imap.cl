@@ -1,4 +1,4 @@
-;; copyright (c) 2002-2004 Franz Inc, Oakland, CA - All rights reserved.
+;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; The software, data and information contained herein are proprietary
 ;; to, and comprise valuable trade secrets of, Franz, Inc.  They are
@@ -14,7 +14,7 @@
 ;; Commercial Software developed at private expense as specified in
 ;; DOD FAR Supplement 52.227-7013 (c) (1) (ii), as applicable.
 ;;
-;; $Id: t-imap.cl,v 1.8 2004/01/16 19:31:52 layer Exp $
+;; $Id: t-imap.cl,v 1.9 2007/04/17 22:01:42 layer Exp $
 
 ;; imap testing
 ;; requires smtp module too

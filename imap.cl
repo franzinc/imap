@@ -15,8 +15,8 @@
 ;; imap.cl
 ;; imap and pop interface
 ;;
-;; copyright (c) 1999 Franz Inc, Berkeley, CA - All rights reserved.
-;; copyright (c) 1999-2004 Franz Inc, Oakland, CA - All rights reserved.
+;; copyright (c) 1999-2002 Franz Inc, Berkeley, CA - All rights reserved.
+;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; This code is free software; you can redistribute it and/or
 ;; modify it under the terms of the version 2.1 of
@@ -29,7 +29,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: imap.cl,v 1.30 2006/08/17 18:16:09 layer Exp $
+;; $Id: imap.cl,v 1.31 2007/04/17 22:01:42 layer Exp $
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in
