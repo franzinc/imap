@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-parse.cl,v 1.4 2007/04/17 22:01:42 layer Exp $
+;; $Id: mime-parse.cl,v 1.5 2007/05/29 18:25:50 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -67,10 +67,7 @@
   `(cdr (assoc ,name ,headers :test #'equalp)))
 
 (defun parse-mime-structure (stream &key mbox)
-  (multiple-value-bind (part stop newpos)
-      (parse-mime-structure-1 stream nil nil 0 mbox)
-    (declare (ignore stop))
-    (values part newpos)))
+  (parse-mime-structure-1 stream nil nil 0 mbox))
 
 ;; Returns values:
 ;; 1) The part
