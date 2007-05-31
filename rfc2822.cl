@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.3 2007/04/17 22:01:42 layer Exp $
+;; $Id: rfc2822.cl,v 1.4 2007/05/31 23:13:08 dancy Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -98,33 +98,161 @@ domain.
 |#
 
 (eval-when (compile eval)
-  ;; dash at the end to avoid mistaking it for a character range
-  ;; indicator.
-  (defconstant *atext-chars*
-      "!#$%&'*+/0123456789=?ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz{|}~-")
+  (defconstant *controls* "\\x0-\\x1f")
   
-  (defconstant *dot-atom* 
-      (format nil "[~a]+(\\.[~a]+)*" *atext-chars* *atext-chars*))
-
-  (defconstant *dotted-dot-atom* 
-      (format nil "[~a]+(\\.[~a]+)+"  *atext-chars* *atext-chars*))
+  (defconstant *specials* "()<>\\[\\]:;@\\,.\"")
   
-  (defvar *rfc822-dotted-domain-re*
-      (format nil "^(~a)(@(~a))?$" *dot-atom* *dotted-dot-atom*))
+  (defconstant *no-ws-ctl* "\\x1-\\x8\\xb-\\xc\\xe-\\x1f\\x7f")
+  
+  (defconstant *fws* "(?:(?:[ \\t]*\\r?\\n)?[ \\t]+)")
 
-  (defvar *rfc822-re* (format nil "^(~a)(@(~a))?$" *dot-atom* *dot-atom*))
+  (defconstant *text* "[^\\r\\n]")
+  
+  (defconstant *quoted-pair* (format nil "\\\\~a" *text*))
+
+  (defconstant *ctext* "[^\\s()\\\\]")
+
+  ;; 1 means (xx)
+  ;; 2 means (xxx (yyy) zzz)
+  (defconstant *max-comment-level* 2)
+  
+  (defparameter *ccontent nil)
+  (defparameter *comment* nil)
+  
+  (dotimes (n *max-comment-level*)
+    (if* (null *comment*)
+       then (setf *ccontent* (format nil "(?:~a|~a)" *ctext* *quoted-pair*))
+       else (setf *ccontent* (format nil "(?:~a|~a|~a)" 
+				     *ctext* *quoted-pair* *comment*)))
+    
+    (setf *comment* (format nil "\\((?:~a?~a)*~a?\\)"
+			    *fws* *ccontent* *fws*)))
+  
+  (defconstant *cfws* (format nil "(?:~a?~a)*(?:(?:~a?~a)|~a)"
+			      *fws* *comment* *fws* *comment* *fws*))
+  
+  (defconstant *atext* 
+      (format nil "[^\\s~a~a]" *controls* *specials*))
+  
+  (defconstant *atom* (format nil "~a?(~a+)~a?" *cfws* *atext* *cfws*))
+
+  (defconstant *dot-atom-text* (format nil "~a+(?:\\.~a+)*" *atext* *atext*))
+  
+  (defconstant *dot-atom* (format nil "~a?(~a)~a?" 
+				  *cfws* *dot-atom-text* *cfws*))
+  
+  ;; no control chars, no backslash, no quote
+  (defconstant *qtext* (format nil "[^~a\\\\\"]" *controls*))
+  
+  (defconstant *qcontent* (format nil "~a|~a" *qtext* *quoted-pair*))
+
+  (defconstant *quoted-string*
+      (format nil "~a?\"((?:~a?~a)*~a?)\"~a?"
+	      *cfws* *fws* *qcontent* *fws* *cfws*))
+  
+  (defconstant *local-part* 
+      (format nil "(~a)|(~a)" *dot-atom* *quoted-string*))
+  
+  ;; domain literals not supported.
+  (defconstant *domain* *dot-atom*)
+  
+  (defconstant *addr-spec* (format nil "(~a)@(~a)" *local-part* *domain*))
+  
+  (defconstant *angle-addr* (format nil "~a?<~a>~a?" 
+				    *cfws* *addr-spec* *cfws*))
+  
+  (defconstant *word* (format nil "(?:~a|~a)" *atom* *quoted-string*))
+  
+  (defconstant *phrase* (format nil "~a+" *word*))
+  
+  (defconstant *display-name* *phrase*)
+  
+  (defconstant *name-addr* (format nil "~a?~a" *display-name* *angle-addr*))
+  
+  (defconstant *mailbox* (format nil "(?:~a|~a)" *name-addr* *addr-spec*))
+  
+  (defconstant *mailbox-list* 
+      (format nil "(?:~a(?:,~a)*)" *mailbox* *mailbox*))
+
+  (defconstant *group* 
+      (format nil "~a:(?:~a|~a)?;~a?" *display-name* *mailbox-list* *cfws*
+	      *cfws*))
+  
+  ;; More strict than the RFC.
+  
+  (defconstant *email-address-re*
+      (format nil "^\\s*(~a)(?:@(~a))?\\s*$" *dot-atom-text* *dot-atom-text*))
+  
   )
-
+      
 (defun parse-email-address (string &key (require-domain t)
 					(require-dotted-domain t))
-  (multiple-value-bind (matched whole user dummy1 dummy2 domain)
-      (if* require-dotted-domain
-	 then (match-re #.*rfc822-dotted-domain-re* string)
-	 else (match-re #.*rfc822-re* string))
-    (declare (ignore whole dummy1 dummy2))
-    (if (or (not matched) (and require-domain (null domain)))
-	nil
-      (values user domain))))
+  (multiple-value-bind (matched x user domain)
+      (match-re #.*email-address-re* string)
+    (declare (ignore x))
+    (if* (or 
+	  ;; Failure cases
+	  (not matched) 
+	  (and require-domain (null domain))
+	  (and require-dotted-domain domain (zerop (count #\. domain))))
+       then nil
+       else (values user domain))))
+
+;; Returns a list of entries like so: 
+;;  (:mailbox user domain display-name)
+;;  or
+;;  (:group display-name mailbox-list)
+
+(defun extract-email-addresses (string &key (start 0) (end (length string))
+					    (errorp t))
+  )
+
+(defmacro parse-common (re)
+  (let ((matched (gensym))
+	(whole (gensym))
+	(inner (gensym)))
+    (setf re (format nil "^~a" (symbol-value re)))
+    `(multiple-value-bind (,matched ,whole, inner)
+	 (match-re ,re string :start start :end end :return :index)
+       (when ,matched
+	 (values (subseq string (car ,inner) (cdr ,inner))
+		 (cdr ,whole))))))
+
+;; Domain literals not supported
+;; local-part @ domain ==>
+;; dot-atom/quoted-string @ dot-atom
+;; Optionally allows domain-less addrspecs.  However, doing so
+;; makes parsing ambiguous.
+(defun parse-addr-spec (string start end require-domain)
+  (declare (optimize (speed 3))
+	   (fixnum start end))
+  (block nil
+    (multiple-value-bind (local-part newpos)
+	(parse-local-part string start end)
+      (if (null local-part)
+	  (return))
+      (setf start newpos)
+      (when (or (eq start end)
+		(not (eq (char string start) #\@)))
+	;; no domain part.
+	(if* require-domain
+	   then (return)
+	   else (return (values local-part nil start))))
+      (incf start)
+      (multiple-value-bind (domain newpos)
+	  (parse-common *dot-atom*)
+	(if domain
+	    (values local-part domain newpos))))))
+
+(defun parse-local-part (string &optional (start 0) (end (length string)))
+  (multiple-value-bind (dot-atom newpos)
+      (parse-common *dot-atom*)
+    (if* dot-atom
+       then (values dot-atom newpos)
+       else (multiple-value-bind (quoted-string newpos)
+		(parse-common *quoted-string*)
+	      (when quoted-string
+		(values quoted-string newpos))))))
 
 ;; Ripped from maild:dns.cl and modified.
 

@@ -34,7 +34,7 @@ v2: make-mime-part: Default external-format is :utf8."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-api.cl,v 1.6 2007/04/17 22:01:42 layer Exp $
+;; $Id: mime-api.cl,v 1.7 2007/05/31 23:13:08 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -45,6 +45,7 @@ v2: make-mime-part: Default external-format is :utf8."
    #:mime-part-p
    #:mime-part-constructed-p
    #:map-over-parts
+   #:decode-header-text
    
    ;; macros
    #:mime-get-header
@@ -361,6 +362,77 @@ This is a multi-part message in MIME format.~%"))
 	    (map-over-parts p function))
    elseif (message-rfc822-p (mime-part-type part) (mime-part-subtype part))
      then (map-over-parts (mime-part-message part) function)))
+
+(defparameter *charset-to-ef*
+    '(("shift-jis" . :shiftjis)
+      ("us-ascii" . :latin1)
+      ("gbk" . :936)
+      #+ignore("euc-kr" :iso-2022-kr)
+      ))
+
+(defun charset-to-external-format (charset)
+  (setf charset (string-downcase charset))
+  (block nil
+    (let ((ef (find-external-format charset :errorp nil)))
+      (if ef
+	  (return ef))
+      (if (setf ef (cdr (assoc charset *charset-to-ef* :test #'string=)))
+	  (return (find-external-format ef)))
+      (multiple-value-bind (matched x inner)
+	  (match-re "^windows-(\\d+)$" charset)
+	(declare (ignore x))
+	(if (and matched (setf ef (find-external-format inner :errorp nil)))
+	    (return ef)))
+      (multiple-value-bind (matched x dig)
+	  (match-re "^iso-8859-(\\d+)(?:-[ie])?$" charset)
+	(declare (ignore x))
+	(if (and matched (setf ef (find-external-format (format nil "iso8859-~a" dig) :errorp nil)))
+	    (return ef)))
+
+      nil)))
+
+(defun decode-header-text (text)
+  (declare (optimize (speed 3))
+	   (string text))
+  (let ((pos 0)
+	(len (length text)))
+    (declare (fixnum pos len))
+    (with-output-to-string (res)
+      (while (< pos len)
+	(multiple-value-bind (matched whole charset encoding encoded)
+	    (match-re "=\\?([^?]+)\\?(q|b)\\?(.*?)\\?=" text 
+		      :start pos
+		      :case-fold t
+		      :return :index)
+	  
+	  (if (null matched)
+	      (return))
+	  
+	  ;; Write out the "before" stuff.
+	  (write-string text res :start pos :end (car whole))
+	  
+	  (let* ((charset (subseq text (car charset) (cdr charset)))
+		 (ef (charset-to-external-format charset)))
+	    (if (null ef)
+		(error "No external format found for MIME charset ~s" charset))
+	    (write-string 
+	     (if* (char-equal (char text (car encoding)) #\q)
+		then (qp-decode-string text
+				       :start (car encoded)
+				       :end (cdr encoded)
+				       :external-format ef)
+		else ;; FIXME: Clean this up with/if rfe6174 is completed.
+		     (octets-to-string
+		      (base64-string-to-usb8-array 
+		       (subseq text (car encoded) (cdr encoded)))
+		      :external-format ef))
+	     res))
+	  
+	  (setf pos (cdr whole))))
+	  
+      ;; Write out the remaining portion.
+      (write-string text res :start pos))))
+
 
 ;; Stuff ripped off from aserve
 

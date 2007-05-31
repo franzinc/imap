@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-parse.cl,v 1.5 2007/05/29 18:25:50 layer Exp $
+;; $Id: mime-parse.cl,v 1.6 2007/05/31 23:13:08 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -66,22 +66,36 @@
 (defmacro get-header (name headers)
   `(cdr (assoc ,name ,headers :test #'equalp)))
 
+(defvar *mime-read-line-unread*)
+
 (defun parse-mime-structure (stream &key mbox)
-  (parse-mime-structure-1 stream nil nil 0 mbox))
+  (let ((*mime-read-line-unread* nil))
+    (multiple-value-bind (part stop-reason newpos)
+	(parse-mime-structure-1 stream nil nil 0 mbox :outer t)
+      (when (and part mbox (not (eq stop-reason :eof)))
+	(format t "advancing to next mbox boundary~%")
+	(multiple-value-bind (x y z newpos2)
+	    (read-until-boundary stream nil newpos t)
+	  (declare (ignore x y z))
+	  (setf stop-reason :eof)
+	  (setf newpos newpos2)))
+      (values part stop-reason newpos))))
 
 ;; Returns values:
-;; 1) The part
+;; 1) The part (or nil if EOF while reading readers)
 ;; 2) The stop reason (:eof, :close-boundary, nil (meaning regular boundary))
 ;; 3) The new position
 
 ;: mime-parse-message-rfc822, parse-mime-structure, mime-parse-multipart
 ;: 
-(defun parse-mime-structure-1 (stream boundary digest pos mbox)
+(defun parse-mime-structure-1 (stream boundary digest pos mbox &key outer)
   (let ((part (make-instance 'mime-part-parsed)))
     (setf (mime-part-position part) pos)
     (setf (mime-part-boundary part) boundary)
     (multiple-value-bind (headers bytes)
 	(parse-headers stream mbox)
+      (if (and (null headers) outer)
+	  (return-from parse-mime-structure-1))
       (setf (mime-part-headers-size part) bytes)
       (incf pos bytes)
       (setf (mime-part-body-position part) pos)
@@ -369,13 +383,6 @@
 
 ;: parse-headers
 ;: 
-(defun blank-line-p (line len)
-  (declare (optimize (speed 3) (safety 0))
-	   (fixnum len))
-  (= len (skip-whitespace line 0 len)))
-
-;: parse-headers
-;: 
 (defun parse-header-line (line len)
   (declare (optimize (speed 3) (safety 0)))
   (let ((pos 0)
@@ -414,27 +421,47 @@
 ;: 
 (defun mime-read-line (stream buffer)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((pos 0)
-	(end (length buffer))
-	(count 0)
-	char)
-    (declare (fixnum pos end count))
+  
+  (if* *mime-read-line-unread*
+     then (let* ((line (car *mime-read-line-unread*))
+		 (bytes (cdr *mime-read-line-unread*))
+		 (len (length line)))
+	    (declare (simple-string line))
+	    (setf *mime-read-line-unread* nil)
+	    (dotimes (n len)
+	      (setf (schar buffer n) (schar line n)))
+	    (values len bytes))
+     else (let ((pos 0)
+		(end (length buffer))
+		(count 0)
+		char)
+	    (declare (fixnum pos end count))
     
-    (while (and (< pos end) (setf char (read-char stream nil nil)))
-      (incf count)
-      (if (char= char #\newline)
-	  (return))
-      (setf (schar buffer pos) char)
-      (incf pos))
+	    (while (and (< pos end) (setf char (read-char stream nil nil)))
+	      (incf count)
+	      (if (char= char #\newline)
+		  (return))
+	      (setf (schar buffer pos) char)
+	      (incf pos))
     
-    (if* (= count 0)
-       then nil ;; EOF
-       else ;; Check for CR/LF combo
-	    (if (and (> pos 0) (char= (schar buffer (1- pos)) #\return))
-		(decf pos))
+	    (if* (= count 0)
+	       then nil ;; EOF
+	       else ;; Check for CR/LF combo
+		    (if (and (> pos 0) 
+			     (char= (schar buffer (1- pos)) #\return))
+			(decf pos))
+		    
+		    (values pos count)))))
 	    
-	    (values pos count))))
-	    
+(defun mime-unread-line (line end bytes)
+  ;; This should never happen
+  (if *mime-read-line-unread*
+      (error "Unread buffer is full."))
+  (setf *mime-read-line-unread* 
+    (cons (subseq line 0 end) bytes)))
+
+(eval-when (compile)
+  (defconstant *parse-headers-line-len* 1024))
 
 ;; Returns:
 ;; 1) headers alist
@@ -445,10 +472,8 @@
 (defun parse-headers (stream mbox)
   (declare (optimize (speed 3) (safety 0)))
   (let ((count 0)
-	(line (make-array 1024 :element-type 'character))
-	headers 
-	lastcons
-	current)
+	(line (make-array #.*parse-headers-line-len* :element-type 'character))
+	headers lastcons current incomplete lastincomplete)
     (declare (fixnum count)
 	     (dynamic-extent line))
 
@@ -456,34 +481,48 @@
       (multiple-value-bind (end bytes)
 	  (mime-read-line stream line)
 	(declare (fixnum end))
-	
-	(if (or (null end)
-		(and mbox (my-prefixp "From " line end)))
-	    (return))
 
-	(incf count bytes)
-	
-	(if (blank-line-p line end)
+	(if (null end)  ;; EOF
 	    (return))
 	
-	(if* (whitespace-char-p (schar line 0))
-	   then ;; Continuation line
-		(if (null current)
-		    (return)) 
-	      
-		(let ((newcons (cons (subseq line 0 end) nil)))
-		  (setf (cdr lastcons) newcons)
-		  (setf lastcons newcons))
-	      
-	   else ;; Fresh header line
-		(multiple-value-bind (name value)
-		    (parse-header-line line end)
-		  (if (null name)
-		      (return)) 
-		
-		  (setf lastcons (cons value nil))
-		  (setf current (cons name lastcons))
-		  (push current headers)))))
+	(setf incomplete (= end #.*parse-headers-line-len*))
+	
+	(if (and mbox (not lastincomplete) (my-prefixp "From " line end))
+	    (return))
+	
+	(incf count bytes)
+
+	(cond
+	 (lastincomplete ;; rest of a long line
+	  (setf (car lastcons)
+	    (concatenate 'string (car lastcons) (subseq line 0 end))))
+	 
+	 ((zerop end) ;; blank line
+	  (return))
+	 
+	 ((whitespace-char-p (schar line 0)) ;; Continuation line
+	  (if (null current) ;; Malformed header line
+	      (return)) 
+	  
+	  (let ((newcons (cons (subseq line 0 end) nil)))
+	    (setf (cdr lastcons) newcons)
+	    (setf lastcons newcons)))
+
+	 (t ;; Fresh header line
+	  (multiple-value-bind (name value)
+	      (parse-header-line line end)
+	    (when (null name)
+	      ;; Malformed header line.  Unread it (so that it
+	      ;; will be treated as part of the body) and
+	      ;; consider the headers terminated.
+	      (mime-unread-line line end bytes)
+	      (return))
+	    
+	    (setf lastcons (cons value nil))
+	    (setf current (cons name lastcons))
+	    (push current headers))))
+	 
+	(setf lastincomplete incomplete)))
 
     ;; Finalize strings.
     (dolist (header headers)
@@ -558,7 +597,7 @@
 		
 		(incf pos bytes)
 		
-		(when (my-prefixp delimiter line end)
+		(when (and delimiter (my-prefixp delimiter line end))
 		  (if* (my-prefixp close-delimiter line end)
 		     then (setf stop-reason :close-boundary)
 		     else (setf stop-reason nil))
