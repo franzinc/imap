@@ -1,0 +1,198 @@
+Prelimanary documenation.
+
+Class: mime-part-parsed
+Subclass of: mime-part
+
+Slot accessors:
+
+    * mime-part-type 
+      <update comment about mime-part-parsed objects>
+    * mime-part-subtype
+      <update comment about mime-part-parsed objects>
+    * mime-part-parameters
+    * mime-part-id
+      <update comment about mime-part-parsed objects>
+    * mime-part-description
+      <update comment about mime-part-parsed objects>
+    * mime-part-encoding
+      <update comment about mime-part-parsed objects>
+    * mime-part-headers
+    * mime-part-parts
+    * mime-part-boundary
+      <update comment about mime-part-parsed objects>
+
+    * mime-part-headers-size
+      This is the size, in bytes, of the header portion of the part
+      (including the blank line terminator)
+
+    * mime-part-body-size
+      This is the size, in bytes, of the body of the part.
+
+    * mime-part-lines
+      For non-multipart types, this is the number of lines that make
+      up the part body.
+   
+    * mime-part-position 
+      This is the file positon of the start of the part headers,
+      relative to the beginning of the topmost part.
+  
+    * mime-part-body-position
+      This is the file position of the start of the part body,
+      relative to the beginning of the topmost part.
+
+    * mime-part-message 
+      For message/rfc822 parts, this slot contains the
+      mime-part-parsed object which represents the encapsulated message.
+
+Function: parse-mime-structure
+
+Arguments: stream &key mbox
+
+Return values: 
+The function returns two values:
+
+ 1) A mime-part-parsed object which represents the topmost MIME part
+    (which may possibly contain subparts).  If there was no message to
+    parse (such as if the stream is at EOF), then nil is returned.
+
+ 2) The number of bytes that were read.
+
+'stream' should be a stream that is positioned at the first header of
+a MIME-compliant email message.  
+
+If 'mbox' is true, then parsing will terminate at EOF or when a line
+which begins with "From " is read.
+
+MIME messages always have a topmost part and may possibly have
+multiple subparts which may recursively have their own subparts.  This
+function reads 'stream' and creates a mime-part-parsed object which
+contains information about these parts and subparts.  For each part,
+the following information is collected:
+
+* The major content type, (e.g, "text", if the Content-Type header
+  is "text/html").
+* The content subtype, (e.g., "html", if the Content-Type header is
+  "text/html").
+* Any parameter information that was supplied in the Content-Type
+  header.
+* The part id, as determined by the Content-Id header, if there was
+  one.
+* The part description, as determined by the Content-Description
+  header, if there was one.
+* The part encoding, as determined by the Content-Transfer-Encoding
+  header.
+* The boundary string, for multipart types.  
+* The list of subparts (which are also mime-part-parsed objects) for
+  multipart parts.
+* The encapsulated message (which is a mime-part-parsed object) for
+  message/rfc822 parts.
+* The size of the part headers (in bytes).
+* The size of the part body (in bytes).
+* The number of lines comprising the part body.
+* The file position of the beginning of the part headers, relative to the
+  position of the topmost part.  For the topmost part, this value will
+  always be zero.  
+* The file position of the beginning of the part body, relative to the
+  position of the topmost part.  
+
+See also: <the documentation page which lists the slots of the
+mime-part-parsed class>.
+
+
+Function: map-over-parts 
+Arguments: part function
+
+'part' must be a mime-part.
+
+'function' must be a function (or symbol naming a function) which
+takes a single argument, a mime-part.
+
+map-over-parts calls 'function' on 'part', then, if part contains
+subparts (or an encapsulated message in the case of a message/rfc822
+part), map-over-parts is called recursively for each subpart (or
+encapsulated message).
+
+Function: qp-encode-stream
+Arguments: instream outstream &key wrap-at
+
+This function reads bytes from instream and writes them in
+quoted-printable format to outstream.  Lines in the output are wrapped
+approximately every 'wrap-at' output characters (which defaults to
+72).  Wrapping may be late by up to 3 characters under some
+circumstances (e.g., when using the default 'wrap-at' value of 72,
+some lines may be 75 characters long).
+
+'instream' is read until EOF is seen.
+
+'instream' must be a stream capable of being read in an octet-oriented
+manner.  In particular, it cannot be a string stream.
+
+See also: qp-decode-stream, base64-encode-stream, base64-decode-stream
+
+
+
+Function: qp-decode-stream
+Arguments: instream outstream
+
+This function reads quoted-printable encoded text from 'instream' and
+writes the decoded text to 'outstream'.  Reading continues until
+end-of-file is seen on 'instream'.  
+
+See also: qp-encode-stream, base64-encode-stream, base64-decoed-stream
+
+
+Macro: with-part-stream
+Arguments: (sym part instream &key (header t)) &body body
+
+with-part-stream evaluates 'body' with 'sym' bound to an input stream
+which, when read, supplies bytes from 'instream'.  'instream' must be
+positioned either at the beginning of the part headers (if keyword
+argument 'header' is true) or at the beginning of the part body (if
+keyword argument 'header' is false).  The 'part' argument is used by
+the macro to determine how many bytes from 'instream' will be used.
+
+The primary purpose of this macro is to create a stream that will
+generate an end-of-file indicator when the contents of a part have
+been completely read.  Such a stream is useful for passing to
+functions which expect to read a stream until EOF (such as
+'decode-quoted-printable' or 'excl:base64-decode-stream').
+
+See also: with-decoded-part-body-stream
+
+Macro: with-decoded-part-body-stream
+Arguments: (sym part instream) &body body
+
+with-decoded-part-body-stream evaluates 'body' with 'sym' bound to an
+input stream which, when read, supplies decoded bytes.  The encoded
+bytes are read from 'instream', which should be an input stream whose
+file position is at the beginning of the part body.  The 'part'
+argument is used by the macro to determine the size of the part body
+and also to determine the content transfer encoding of the part.  The
+input stream bound to 'sym' will signal end-of-file when the part body
+has been exhausted.
+
+Example:
+
+(use-package :net.post-office)
+
+(defun extract-all-jpegs (filename)
+  (with-open-file (f filename)
+    (let ((toppart (parse-mime-structure f))
+	  (count 0))
+      
+      (flet ((extract-jpeg (part)
+	       (if* (and (equalp (mime-part-type part) "image")
+			 (equalp (mime-part-subtype part) "jpeg"))
+		  then (incf count)
+		       (let ((filename (format nil "image~d.jpg" count)))
+			 (format t "Saving ~a...~%" filename)
+			 (with-open-file (out filename :direction :output)
+			   ;; Position source file pointer to the beginning
+			   ;; of the part body.
+			   (file-position f (mime-part-body-position part))
+			   (with-decoded-part-body-stream (bod part f)
+			     (sys:copy-file bod out)))))))
+      
+	(map-over-parts toppart #'extract-jpeg)))))
+
+See also: mime-part-body-position slot accessor.

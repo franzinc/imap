@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-transfer-encoding.cl,v 1.10 2007/05/31 23:13:08 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.11 2007/06/01 16:24:40 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -116,6 +116,7 @@
 
 
 ;; Used by qp-decode-stream
+(eval-when (compile)
 (defconstant *qp-digit-values*
     #.(let ((arr (make-array 257 :element-type 'fixnum)))
 	(dotimes (n 256)
@@ -126,7 +127,7 @@
 	       then (- n (- (char-code #\A) 10))
 	       else -1)))
 	(setf (aref arr 256) -2)
-	arr))
+	arr)))
 
 (defun qp-decode-stream (instream outstream &key count)
   (declare (optimize (speed 3)))

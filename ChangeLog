@@ -1,3 +1,14 @@
+2007-06-01  Ahmon Dancy  <dancy@dancy>
+
+	* mime-transfer-encoding.cl: New quoted-printable decoding utility
+	functions.
+
+	* mime-parse.cl: Improved handling of large or noncompliant
+	headers.  Improved mbox processing support.
+
+	* mime-api.cl: New exported function: decode-header-text.
+	
+
 2007-05-29  Kevin Layer  <layer@gemini.franz.com>
 
 	* mime-parse.cl: fix from dancy for parse-mime-structure
