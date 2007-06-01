@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.4 2007/05/31 23:13:08 dancy Exp $
+;; $Id: rfc2822.cl,v 1.5 2007/06/01 16:21:38 dancy Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -153,6 +153,9 @@ domain.
   (defconstant *local-part* 
       (format nil "(~a)|(~a)" *dot-atom* *quoted-string*))
   
+  (defconstant *local-part-x*
+      (format nil "^(?:~a)|(?:~a)" *dot-atom* *quoted-string*))
+  
   ;; domain literals not supported.
   (defconstant *domain* *dot-atom*)
   
@@ -197,62 +200,6 @@ domain.
 	  (and require-dotted-domain domain (zerop (count #\. domain))))
        then nil
        else (values user domain))))
-
-;; Returns a list of entries like so: 
-;;  (:mailbox user domain display-name)
-;;  or
-;;  (:group display-name mailbox-list)
-
-(defun extract-email-addresses (string &key (start 0) (end (length string))
-					    (errorp t))
-  )
-
-(defmacro parse-common (re)
-  (let ((matched (gensym))
-	(whole (gensym))
-	(inner (gensym)))
-    (setf re (format nil "^~a" (symbol-value re)))
-    `(multiple-value-bind (,matched ,whole, inner)
-	 (match-re ,re string :start start :end end :return :index)
-       (when ,matched
-	 (values (subseq string (car ,inner) (cdr ,inner))
-		 (cdr ,whole))))))
-
-;; Domain literals not supported
-;; local-part @ domain ==>
-;; dot-atom/quoted-string @ dot-atom
-;; Optionally allows domain-less addrspecs.  However, doing so
-;; makes parsing ambiguous.
-(defun parse-addr-spec (string start end require-domain)
-  (declare (optimize (speed 3))
-	   (fixnum start end))
-  (block nil
-    (multiple-value-bind (local-part newpos)
-	(parse-local-part string start end)
-      (if (null local-part)
-	  (return))
-      (setf start newpos)
-      (when (or (eq start end)
-		(not (eq (char string start) #\@)))
-	;; no domain part.
-	(if* require-domain
-	   then (return)
-	   else (return (values local-part nil start))))
-      (incf start)
-      (multiple-value-bind (domain newpos)
-	  (parse-common *dot-atom*)
-	(if domain
-	    (values local-part domain newpos))))))
-
-(defun parse-local-part (string &optional (start 0) (end (length string)))
-  (multiple-value-bind (dot-atom newpos)
-      (parse-common *dot-atom*)
-    (if* dot-atom
-       then (values dot-atom newpos)
-       else (multiple-value-bind (quoted-string newpos)
-		(parse-common *quoted-string*)
-	      (when quoted-string
-		(values quoted-string newpos))))))
 
 ;; Ripped from maild:dns.cl and modified.
 
