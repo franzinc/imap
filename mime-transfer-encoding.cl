@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-transfer-encoding.cl,v 1.11 2007/06/01 16:24:40 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.12 2007/06/04 23:45:17 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -170,8 +170,8 @@
 				(unread nextbyte))
 		       else ;; =XY encoding
 			    (let* ((byte3 (get-byte :eof-value 256))
-				   (high (aref *qp-digit-values* nextbyte))
-				   (low (aref *qp-digit-values* byte3))
+				   (high (aref #.*qp-digit-values* nextbyte))
+				   (low (aref #.*qp-digit-values* byte3))
 				   (value (logior (the fixnum (ash high 4)) low)))
 			      (declare (fixnum byte3 high low value))
 			      (if* (< value 0)
@@ -246,8 +246,8 @@
 				(unread nextbyte))
 		       else ;; =XY encoding
 			    (let* ((byte3 (get-byte :eof-value 256))
-				   (high (aref *qp-digit-values* nextbyte))
-				   (low (aref *qp-digit-values* byte3))
+				   (high (aref #.*qp-digit-values* nextbyte))
+				   (low (aref #.*qp-digit-values* byte3))
 				   (value (logior (the fixnum (ash high 4)) low)))
 			      (declare (fixnum byte3 high low value))
 			      (if* (< value 0)
