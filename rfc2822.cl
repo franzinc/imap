@@ -1,4 +1,4 @@
-;; -*- mode: common-lisp; package: net.post-office -*-
+;; -*- mode: common-lisp; package: net.mail -*-
 ;;
 ;; copyright (c) 1999-2002 Franz Inc, Berkeley, CA - All rights reserved.
 ;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.5 2007/06/01 16:21:38 dancy Exp $
+;; $Id: rfc2822.cl,v 1.6 2007/06/05 17:15:18 dancy Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -22,9 +22,16 @@
   :type :system
   :post-loadable t)
 
+#+(version= 8 1 :beta)
+(sys:defpatch "rfc2822" 0
+  "v0: New extract-email-addresses function."
+  :type :system
+  :post-loadable t)
+
 (defpackage :net.mail
   (:use #:lisp #:excl)
   (:export #:parse-email-address
+	   #:extract-email-addresses
 	   #:valid-email-domain-p))
 
 (in-package :net.mail)
@@ -102,86 +109,15 @@ domain.
   
   (defconstant *specials* "()<>\\[\\]:;@\\,.\"")
   
-  (defconstant *no-ws-ctl* "\\x1-\\x8\\xb-\\xc\\xe-\\x1f\\x7f")
-  
-  (defconstant *fws* "(?:(?:[ \\t]*\\r?\\n)?[ \\t]+)")
-
-  (defconstant *text* "[^\\r\\n]")
-  
-  (defconstant *quoted-pair* (format nil "\\\\~a" *text*))
-
-  (defconstant *ctext* "[^\\s()\\\\]")
-
-  ;; 1 means (xx)
-  ;; 2 means (xxx (yyy) zzz)
-  (defconstant *max-comment-level* 2)
-  
-  (defparameter *ccontent nil)
-  (defparameter *comment* nil)
-  
-  (dotimes (n *max-comment-level*)
-    (if* (null *comment*)
-       then (setf *ccontent* (format nil "(?:~a|~a)" *ctext* *quoted-pair*))
-       else (setf *ccontent* (format nil "(?:~a|~a|~a)" 
-				     *ctext* *quoted-pair* *comment*)))
-    
-    (setf *comment* (format nil "\\((?:~a?~a)*~a?\\)"
-			    *fws* *ccontent* *fws*)))
-  
-  (defconstant *cfws* (format nil "(?:~a?~a)*(?:(?:~a?~a)|~a)"
-			      *fws* *comment* *fws* *comment* *fws*))
-  
   (defconstant *atext* 
       (format nil "[^\\s~a~a]" *controls* *specials*))
-  
-  (defconstant *atom* (format nil "~a?(~a+)~a?" *cfws* *atext* *cfws*))
+
+  (defconstant *atom* (format nil "^~a+" *atext*))
 
   (defconstant *dot-atom-text* (format nil "~a+(?:\\.~a+)*" *atext* *atext*))
   
-  (defconstant *dot-atom* (format nil "~a?(~a)~a?" 
-				  *cfws* *dot-atom-text* *cfws*))
-  
-  ;; no control chars, no backslash, no quote
-  (defconstant *qtext* (format nil "[^~a\\\\\"]" *controls*))
-  
-  (defconstant *qcontent* (format nil "~a|~a" *qtext* *quoted-pair*))
-
-  (defconstant *quoted-string*
-      (format nil "~a?\"((?:~a?~a)*~a?)\"~a?"
-	      *cfws* *fws* *qcontent* *fws* *cfws*))
-  
-  (defconstant *local-part* 
-      (format nil "(~a)|(~a)" *dot-atom* *quoted-string*))
-  
-  (defconstant *local-part-x*
-      (format nil "^(?:~a)|(?:~a)" *dot-atom* *quoted-string*))
-  
-  ;; domain literals not supported.
-  (defconstant *domain* *dot-atom*)
-  
-  (defconstant *addr-spec* (format nil "(~a)@(~a)" *local-part* *domain*))
-  
-  (defconstant *angle-addr* (format nil "~a?<~a>~a?" 
-				    *cfws* *addr-spec* *cfws*))
-  
-  (defconstant *word* (format nil "(?:~a|~a)" *atom* *quoted-string*))
-  
-  (defconstant *phrase* (format nil "~a+" *word*))
-  
-  (defconstant *display-name* *phrase*)
-  
-  (defconstant *name-addr* (format nil "~a?~a" *display-name* *angle-addr*))
-  
-  (defconstant *mailbox* (format nil "(?:~a|~a)" *name-addr* *addr-spec*))
-  
-  (defconstant *mailbox-list* 
-      (format nil "(?:~a(?:,~a)*)" *mailbox* *mailbox*))
-
-  (defconstant *group* 
-      (format nil "~a:(?:~a|~a)?;~a?" *display-name* *mailbox-list* *cfws*
-	      *cfws*))
-  
-  ;; More strict than the RFC.
+  ;; More strict than the RFC, but good for verifying syntax of email
+  ;; addresses that a user supplies.
   
   (defconstant *email-address-re*
       (format nil "^\\s*(~a)(?:@(~a))?\\s*$" *dot-atom-text* *dot-atom-text*))
@@ -200,6 +136,284 @@ domain.
 	  (and require-dotted-domain domain (zerop (count #\. domain))))
        then nil
        else (values user domain))))
+
+;; Returns a list of entries like so: 
+;;  (:mailbox display-name user domain)
+;;  or
+;;  (:group display-name mailbox-list)
+
+(defun extract-email-addresses (string &key (start 0) (end (length string))
+					    (require-domain t) (errorp t))
+  (declare (optimize (speed 3))
+	   (fixnum start end))
+  (with-underlying-simple-vector (string string disp)
+    (declare (simple-string string)
+	     (fixnum disp))
+    (incf start disp)
+    (incf end disp)
+    
+    ;; Unfold.
+    (when (match-re "\\r?\\n\\s" string :start start :end end)
+      (setf string (replace-re string "\\r?\\n\\s" " " 
+			       :start start :end end))
+      (setf start 0)
+      (setf end (length string)))
+    
+    (let ((res 
+	   (catch 'syntax-error
+	     (parse-address-list string start end require-domain))))
+      (if* (stringp res)
+	 then (if errorp (error res))
+       elseif (null res)
+	 then (if errorp 
+		  (error "Failed to parse: ~s" (subseq string start end)))
+	      nil
+	 else res))))
+
+(macrolet ((parse-special (char skip-ws)
+	     `(multiple-value-bind (type value newpos)
+		  (rfc2822-lex string start end ,skip-ws)
+		(declare (ignore type))
+		(when (eq value ,char)
+		  (setf start newpos)))))
+
+  ;; Supports obsolete format which allows for null members in the list.
+  (defun parse-address-list (string start end require-domain)
+    (let (res)
+      (loop
+	(while (parse-special #\, t))
+	(multiple-value-bind (addr newpos)
+	    (parse-address string start end require-domain)
+	  (if (null addr)
+	      (return))
+	  (setf start newpos)
+	  (push addr res)))
+      (values (nreverse res) start)))
+    
+  (defun parse-address (string start end require-domain)
+    (multiple-value-bind (mb newpos)
+	(parse-mailbox string start end require-domain)
+      (if* mb
+	 then (values mb newpos)
+	 else (parse-group string start end require-domain))))
+  
+  
+  (defun parse-mailbox (string start end require-domain)
+    (multiple-value-bind (ok display-name localpart domain newpos)
+	(parse-name-addr string start end require-domain)
+      (if ok
+	  (return-from parse-mailbox 
+	    (values
+	     (list :mailbox display-name localpart domain)
+	     newpos))))
+    (multiple-value-bind (localpart domain newpos)
+	(parse-addr-spec string start end require-domain)
+      (when localpart
+	(setf start newpos)
+	;; Check for a trailing comment and use that as the display name
+	(multiple-value-bind (display-name newpos)
+	    (grab-next-comment string start end)
+	  (if display-name
+	      (setf start newpos))
+	     (values
+	      (list :mailbox display-name localpart domain)
+	      start)))))
+  
+  (defun grab-next-comment (string start end)
+    (loop
+      (multiple-value-bind (type value newpos)
+	  (rfc2822-lex string start end nil)
+	(if (eq type :comment)
+	    (return (values (replace-re value "^\\((.*)\\)$" "\\1") newpos)))
+	(if* (eq type :wsp)
+	   then (setf start newpos)
+	   else (return)))))
+	
+  (defun parse-group (string start end require-domain)
+    (multiple-value-bind (display-name newpos)
+	(parse-phrase string start end)
+      (when display-name
+	(setf start newpos)
+	(when (parse-special #\: t)
+	  (multiple-value-bind (mailbox-list newpos)
+	      (parse-mailbox-list string start end require-domain)
+	    (setf start newpos)
+	    (when (parse-special #\; t)
+	      (values :group mailbox-list newpos)))))))
+
+  (defun parse-mailbox-list (string start end require-domain)
+    (let (res)
+      (loop
+	(multiple-value-bind (mailbox newpos)
+	    (parse-mailbox string start end require-domain)
+	  (if (null mailbox)
+	      (return))
+	  (push mailbox res)
+	  (setf start newpos)
+	  (if (not (parse-special #\, t))
+	      (return))))
+      (values (nreverse res) start)))
+  
+  (defun parse-name-addr (string start end require-domain)
+    (multiple-value-bind (display-name newpos)
+	(parse-phrase string start end)
+      (if display-name
+	  (setf start newpos))
+      (multiple-value-bind (localpart domain newpos)
+	  (parse-angle-addr string start end require-domain)
+	(when localpart
+	  (values t display-name localpart domain newpos)))))
+  
+  ;; This is obs-phrase, which is seen often.  For example:
+  ;; From: Mr. T <mr.t@pitythefool.com>
+  (defun parse-phrase (string start end)
+    (let ((first t)
+	  res type value newpos)
+      (loop
+	(multiple-value-setq (type value newpos)
+	  (rfc2822-lex string start end first))
+	(if (null type)
+	    nil)
+	(if* (or (eq type :atom)
+		 (eq type :quoted-string)
+		 (and (not first) (or (eq value #\.) (eq type :wsp))))
+	   then (push value res)
+		(setf first nil)
+		(setf start newpos)
+	   else (return)))
+      (if (and res (match-re "^\\s" (first res)))
+	  (pop res))
+      (if res 
+	  (values (list-to-delimited-string (nreverse res) "") start))))
+    
+  (defun parse-angle-addr (string start end require-domain)
+    (when (parse-special #\< t)
+      (multiple-value-bind (localpart domain newpos)
+	  (parse-addr-spec string start end require-domain)
+	(setf start newpos)
+	(when (and localpart (parse-special #\> t))
+	  (values localpart domain start)))))
+  
+  (defun parse-addr-spec (string start end require-domain)
+    (multiple-value-bind (localpart newpos)
+	(parse-local-part string start end)
+      (when localpart
+	(setf start newpos)
+	(when (not (parse-special #\@ t))
+	  (if* require-domain
+	     then (return-from parse-addr-spec)
+	     else (return-from parse-addr-spec 
+		    (values localpart nil start))))
+	(multiple-value-bind (domain newpos)
+	    (parse-dot-atom string start end)
+	  (when domain
+	    (values localpart domain newpos)))))))
+
+(defun parse-local-part (string start end)
+  (multiple-value-bind (type value newpos)
+      (rfc2822-lex string start end t)
+    (if* (eq type :quoted-string)
+       then (values value newpos)
+     elseif (eq type :atom)
+       then (parse-dot-atom string start end))))
+
+(defun parse-dot-atom (string start end)
+  (let ((first t)
+	res)
+    (loop
+      (multiple-value-bind (type value newpos)
+	  (rfc2822-lex string start end first)
+	(setf first nil)
+	(if (null type)
+	    (return))
+	(if* (eq type :atom)
+	   then (push value res)
+	 elseif (not (eq value #\.))
+	   then (return))
+	(setf start newpos)))
+    (if res
+	(values (list-to-delimited-string (nreverse res) #\.) start))))
+
+(eval-when (compile)
+  (defconstant *max-comment-nesting* 3)
+  
+  (defparameter *cchar* "(?:[^()\\\\]|\\\\.)")
+  (defparameter *comment* nil)
+  
+  (dotimes (n *max-comment-nesting*)
+    (if* *comment*
+       then (setf *comment* (format nil "(?:\\((?:~a|~a)*\\))"
+				   *cchar* *comment*))
+       else (setf *comment* (format nil "(?:\\(~a*\\))" *cchar*))))
+  
+  (setf *comment* (format nil "^~a" *comment*)))
+
+(defun rfc2822-lex (string start end skip-ws)
+  (declare (optimize (speed 3))
+	   (simple-string string)
+	   (fixnum start end))
+  (when (< start end)
+    (let ((char (schar string start)))
+      (if* (eq char #\") 
+	 then ;; quoted string.
+	      (multiple-value-bind (matched whole)
+		  (match-re "^\"((?:[^\\\\\"]|\\\\.)*)\"" string
+			    :start start :end end
+			    :return :index)
+		(if (not matched)
+		    (throw 'syntax-error "Unterminated quoted string"))
+		(values :quoted-string 
+			(subseq string (car whole) (cdr whole))
+			(cdr whole)))
+       elseif (or (eq char #\space) (eq char #\tab))
+	 then ;; whitespace
+	      (multiple-value-bind (x match)
+		  (match-re "^\\s+" string 
+			    :start start :end end :return :index)
+		(declare (ignore x))
+		(if* skip-ws
+		   then (rfc2822-lex string (cdr match) end t)
+		   else (values :wsp
+				(subseq string (car match) (cdr match))
+				(cdr match))))
+       elseif (eq char #\()
+	 then ;; comment
+	      (multiple-value-bind (matched whole)
+		  (match-re #.*comment* string
+			    :start start :end end :return :index)
+		(if (not matched)
+		    (throw 'syntax-error 
+		      "Unterminated comment or nesting too deep"))
+		(if* skip-ws
+		   then (rfc2822-lex string (cdr whole) end t)
+		   else (values :comment
+				(subseq string (car whole) (cdr whole))
+				(cdr whole))))
+	 else (multiple-value-bind (matched whole)
+		  (match-re *atom* string :start start :end end 
+			    :return :index)
+		(if* (not matched)
+		   then ;; must be a special
+			(values :special
+				char
+				(1+ start))
+		   else ;; atom
+			(values :atom
+				(subseq string (car whole) (cdr whole))
+				(cdr whole))))))))
+
+#+ignore
+(defun test ()
+  (dolist (file (command-output "find ~/mail/ -name \"[0-9][0-9]*\""))    
+    (with-open-file (f file)
+      (let* ((part (parse-mime-structure f))
+	     (hdrs (mime-part-headers part)))
+	(dolist (type '("From" "To" "Cc"))
+	  (let ((hdr (cdr (assoc type hdrs :test #'equalp))))
+	    (when hdr
+	      (if (null (extract-email-addresses hdr :require-domain nil
+						 :errorp nil))
+		  (format t "Failed to parse: ~s~%" hdr)))))))))
 
 ;; Ripped from maild:dns.cl and modified.
 

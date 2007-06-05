@@ -1,3 +1,7 @@
+2007-06-05  Ahmon Dancy  <dancy@dancy>
+
+	* rfe7210: rfc2822.cl: new extract-email-addresses function.
+
 2007-06-01  Ahmon Dancy  <dancy@dancy>
 
 	* mime-transfer-encoding.cl: New quoted-printable decoding utility
