@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.6 2007/06/05 17:15:18 dancy Exp $
+;; $Id: rfc2822.cl,v 1.7 2007/06/05 17:34:50 dancy Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -239,7 +239,7 @@ domain.
 	      (parse-mailbox-list string start end require-domain)
 	    (setf start newpos)
 	    (when (parse-special #\; t)
-	      (values :group mailbox-list newpos)))))))
+	      (values (list :group mailbox-list) newpos)))))))
 
   (defun parse-mailbox-list (string start end require-domain)
     (let (res)
