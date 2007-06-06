@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.8 2007/06/05 17:35:46 dancy Exp $
+;; $Id: rfc2822.cl,v 1.9 2007/06/06 16:59:01 layer Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -22,8 +22,8 @@
   :type :system
   :post-loadable t)
 
-#+(version= 8 1 :beta)
-(sys:defpatch "rfc2822" 0
+#+(version= 8 1 beta)
+(sys:defpatch "rfc2822" 1
   "v0: New extract-email-addresses function."
   :type :system
   :post-loadable t)
