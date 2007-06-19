@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-transfer-encoding.cl,v 1.12 2007/06/04 23:45:17 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.13 2007/06/19 22:01:14 dancy Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -125,6 +125,8 @@
 	       then (- n (char-code #\0))
 	     elseif (<= (char-code #\A) n (char-code #\F))
 	       then (- n (- (char-code #\A) 10))
+	     elseif (<= (char-code #\a) n (char-code #\f))
+	       then (- n (- (char-code #\a) 10))
 	       else -1)))
 	(setf (aref arr 256) -2)
 	arr)))
