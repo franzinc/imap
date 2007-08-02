@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-transfer-encoding.cl,v 1.13 2007/06/19 22:01:14 dancy Exp $
+;; $Id: mime-transfer-encoding.cl,v 1.14 2007/08/02 18:14:31 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -283,7 +283,9 @@
 (defmacro with-decoded-part-body-stream ((sym part instream) &body body)
   (let ((p (gensym))
 	(encoding (gensym))
-	(count (gensym)))
+	(count (gensym))
+	(charset (gensym))
+	(ef (gensym)))
     `(let* ((,p ,part)
 	    (,encoding (mime-part-encoding ,p))
 	    (,count (mime-part-body-size ,p)))
@@ -291,6 +293,11 @@
 					      ,instream
 					      ,encoding
 					      ,count)
+	 (let* ((,charset (or (cdr (assoc "charset" (mime-part-parameters ,p)
+					  :test #'equalp))
+			      "us-ascii"))
+		(,ef (or (charset-to-external-format ,charset) :latin1)))
+	   (setf (stream-external-format ,sym) ,ef))
 	 ,@body))))
 					  
 (defun mime-decode-transfer-encoding (outstream instream encoding count)

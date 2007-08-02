@@ -1,3 +1,16 @@
+2007-08-02  Ahmon Dancy  <dancy@dancy>
+
+	* mime-parse.cl:
+
+	Don't include the stuff between the end of a multipart part and
+	the beginning of the next part in the mime-part-body-size.
+
+	* mime-transfer-encoding.cl:
+
+	with-decoded-part-body-stream.  Set the stream's external-format
+	based on the charset specified in the part (if any (defaults to
+	:latin1)).
+
 2007-06-05  Ahmon Dancy  <dancy@dancy>
 
 	* rfe7210: rfc2822.cl: new extract-email-addresses function.

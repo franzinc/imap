@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-parse.cl,v 1.6 2007/05/31 23:13:08 dancy Exp $
+;; $Id: mime-parse.cl,v 1.7 2007/08/02 18:14:31 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -347,10 +347,10 @@
     
     ;; If boundary isn't specified.. try to compensate by using our
     ;; parent's boundary.
-    (if (null boundary)
-	(setf boundary parent-boundary)
-      (setf boundary (mime-dequote boundary)))
-    
+    (if* (null boundary)
+       then (setf boundary parent-boundary)
+       else (setf boundary (mime-dequote boundary)))
+
     ;; Locate the first boundary.
     (multiple-value-bind (ignore1 ignore2 ignore3 newpos)
 	(read-until-boundary stream boundary pos mbox)
@@ -366,13 +366,12 @@
     
     (setf (mime-part-parts part) (nreverse parts))
     
+    (setf (mime-part-body-size part) (- pos startpos))
+    
     ;; Discard everything that follows until we reach the parent-boundary.
     (multiple-value-bind (ignore1 ignore2 eof pos)
 	(read-until-boundary stream parent-boundary pos mbox)
       (declare (ignore ignore1 ignore2))
-      
-      (setf (mime-part-body-size part) (- pos startpos))
-      
       (values part eof pos))))
 
 
