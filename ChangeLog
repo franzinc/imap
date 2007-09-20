@@ -1,3 +1,10 @@
+2007-09-20  Ahmon Dancy  <dancy@dancy>
+
+	* rfe7462: rfc2822.cl (extract-email-addresses): New 'compact'
+	keyword arg to return results in a simpler format.  Also
+	includes a parsing bugfix for some unusual but legal
+	addresses.  
+
 2007-08-02  Ahmon Dancy  <dancy@dancy>
 
 	* mime-parse.cl:

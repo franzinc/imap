@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.9 2007/06/06 16:59:01 layer Exp $
+;; $Id: rfc2822.cl,v 1.10 2007/09/20 18:22:42 layer Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -22,9 +22,9 @@
   :type :system
   :post-loadable t)
 
-#+(version= 8 1 beta)
+#+(version= 8 1)
 (sys:defpatch "rfc2822" 1
-  "v0: New extract-email-addresses function."
+  "v1: extract-email-addresses enhancements & parsing fix."
   :type :system
   :post-loadable t)
 
@@ -141,9 +141,12 @@ domain.
 ;;  (:mailbox display-name user domain)
 ;;  or
 ;;  (:group display-name mailbox-list)
+;; or, if 'compact' keyword arg is true, returns a flattened list of 
+;;  user@domain strings.
 
 (defun extract-email-addresses (string &key (start 0) (end (length string))
-					    (require-domain t) (errorp t))
+					    (require-domain t) (errorp t)
+					    compact)
   (declare (optimize (speed 3))
 	   (fixnum start end))
   (with-underlying-simple-vector (string string disp)
@@ -168,7 +171,27 @@ domain.
 	 then (if errorp 
 		  (error "Failed to parse: ~s" (subseq string start end)))
 	      nil
+       elseif compact
+	 then (compact-extracted-addresses res)
 	 else res))))
+
+(defun compact-extracted-addresses (list)
+  (declare (optimize (speed 3)))
+  (let (res)
+    (dolist (entry list)
+      (let ((type (car entry)))
+	(ecase type
+	  (:mailbox
+	   (let ((user (third entry))
+		 (domain (fourth entry)))
+	     (push (if* domain
+		      then (concatenate 'string user "@" domain)
+		      else user)
+		   res)))
+	  (:group
+	   (dolist (addr (compact-extracted-addresses (third entry)))
+	     (push addr res))))))
+    (nreverse res)))
 
 (macrolet ((parse-special (char skip-ws)
 	     `(multiple-value-bind (type value newpos)
@@ -281,7 +304,7 @@ domain.
 		(setf first nil)
 		(setf start newpos)
 	   else (return)))
-      (if (and res (match-re "^\\s" (first res)))
+      (if (and (stringp res) (match-re "^\\s" (first res)))
 	  (pop res))
       (if res 
 	  (values (list-to-delimited-string (nreverse res) "") start))))
