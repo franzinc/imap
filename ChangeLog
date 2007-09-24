@@ -1,3 +1,7 @@
+2007-09-24  Ahmon Dancy  <dancy@dancy>
+
+	* rfe7462: rfc2822.cl: further improvements
+
 2007-09-20  Ahmon Dancy  <dancy@dancy>
 
 	* rfe7462: rfc2822.cl (extract-email-addresses): New 'compact'

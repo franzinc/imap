@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: rfc2822.cl,v 1.10 2007/09/20 18:22:42 layer Exp $
+;; $Id: rfc2822.cl,v 1.11 2007/09/24 22:17:45 layer Exp $
 
 #+(version= 8 0)
 (sys:defpatch "rfc2822" 0
@@ -238,9 +238,9 @@ domain.
 	    (grab-next-comment string start end)
 	  (if display-name
 	      (setf start newpos))
-	     (values
-	      (list :mailbox display-name localpart domain)
-	      start)))))
+	  (values
+	   (list :mailbox display-name localpart domain)
+	   start)))))
   
   (defun grab-next-comment (string start end)
     (loop
@@ -295,8 +295,6 @@ domain.
       (loop
 	(multiple-value-setq (type value newpos)
 	  (rfc2822-lex string start end first))
-	(if (null type)
-	    nil)
 	(if* (or (eq type :atom)
 		 (eq type :quoted-string)
 		 (and (not first) (or (eq value #\.) (eq type :wsp))))
@@ -304,6 +302,7 @@ domain.
 		(setf first nil)
 		(setf start newpos)
 	   else (return)))
+      ;; Dump any trailing whitespace we collected
       (if (and (stringp res) (match-re "^\\s" (first res)))
 	  (pop res))
       (if res 
@@ -388,7 +387,8 @@ domain.
 		(values :quoted-string 
 			(subseq string (car whole) (cdr whole))
 			(cdr whole)))
-       elseif (or (eq char #\space) (eq char #\tab))
+       elseif (or (eq char #\space) (eq char #\tab)
+		  (eq char #\return) (eq char #\newline))
 	 then ;; whitespace
 	      (multiple-value-bind (x match)
 		  (match-re "^\\s+" string 
@@ -426,17 +426,22 @@ domain.
 				(cdr whole))))))))
 
 #+ignore
-(defun test ()
-  (dolist (file (command-output "find ~/mail/ -name \"[0-9][0-9]*\""))    
-    (with-open-file (f file)
-      (let* ((part (parse-mime-structure f))
-	     (hdrs (mime-part-headers part)))
-	(dolist (type '("From" "To" "Cc"))
-	  (let ((hdr (cdr (assoc type hdrs :test #'equalp))))
-	    (when hdr
-	      (if (null (extract-email-addresses hdr :require-domain nil
-						 :errorp nil))
-		  (format t "Failed to parse: ~s~%" hdr)))))))))
+(defun test (&key errorp (compact t))
+  (let ((seen-addrs (make-hash-table :test #'equal)))
+    (dolist (file (excl.osi:command-output "find ~/mail/ -name \"[0-9][0-9]*\""))
+      (with-open-file (f file)
+	(let* ((part (net.post-office:parse-mime-structure f))
+	       (hdrs (net.post-office:mime-part-headers part)))
+	  (dolist (type '("From" "To" "Cc"))
+	    (let ((hdr (cdr (assoc type hdrs :test #'equalp))))
+	      (when (and hdr 
+			 (string/= hdr "")
+			 (not (gethash hdr seen-addrs)))
+		(setf (gethash hdr seen-addrs) t)
+		(if (null (extract-email-addresses hdr :require-domain nil
+						   :errorp errorp
+						   :compact compact))
+		    (format t "Failed to parse: ~s~%" hdr))))))))))
 
 ;; Ripped from maild:dns.cl and modified.
 
