@@ -1,3 +1,11 @@
+2008-05-21  Ahmon Dancy  <dancy@dancy>
+
+	* bug17849: Fix parse-mime-structure behavior when it
+	encounters malformatted headers.  Now treats a malformatted
+	header as the first line of the body.  
+
+	Commented out an extraneous debug message.
+
 2007-09-24  Ahmon Dancy  <dancy@dancy>
 
 	* rfe7462: rfc2822.cl: further improvements

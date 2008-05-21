@@ -1,6 +1,7 @@
 #+(version= 8 1)
-(sys:defpatch "mime" 1
-  "v1: changes to internal/undocumented portions of module."
+(sys:defpatch "mime" 2
+  "v1: changes to internal/undocumented portions of module;
+v2: better parse-mime-structure behavior in the face of malformatted headers."
   :type :system
   :post-loadable t)
 
@@ -13,7 +14,6 @@ v3: add mime structure parsing support."
   :type :system
   :post-loadable t)
 
-#+(version= 7 0)
 (sys:defpatch "mime" 2
   "v0: New module.  See documentation.;
 v1: Improve default transfer encoding determination;
@@ -40,7 +40,7 @@ v2: make-mime-part: Default external-format is :utf8."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-api.cl,v 1.8 2007/08/02 18:14:31 layer Exp $
+;; $Id: mime-api.cl,v 1.9 2008/05/21 21:01:56 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)

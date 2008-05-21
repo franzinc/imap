@@ -14,7 +14,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-parse.cl,v 1.7 2007/08/02 18:14:31 layer Exp $
+;; $Id: mime-parse.cl,v 1.8 2008/05/21 21:01:56 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -73,7 +73,7 @@
     (multiple-value-bind (part stop-reason newpos)
 	(parse-mime-structure-1 stream nil nil 0 mbox :outer t)
       (when (and part mbox (not (eq stop-reason :eof)))
-	(format t "advancing to next mbox boundary~%")
+	;;(format t "advancing to next mbox boundary~%")
 	(multiple-value-bind (x y z newpos2)
 	    (read-until-boundary stream nil newpos t)
 	  (declare (ignore x y z))
@@ -414,8 +414,7 @@
 
 ;; Returns offset of end of line in buffer.  Or nil if EOF
 ;; Second value is the number of characters read (including EOL chars)
-;; This is slower than a read-line call, but in the long run can
-;; lead to big savings in gc time.
+
 ;: parse-headers, read-until-boundary, collect-message-data-from-mbox
 ;: 
 (defun mime-read-line (stream buffer)
@@ -479,7 +478,7 @@
     (loop
       (multiple-value-bind (end bytes)
 	  (mime-read-line stream line)
-	(declare (fixnum end))
+	(declare (fixnum end bytes))
 
 	(if (null end)  ;; EOF
 	    (return))
@@ -500,8 +499,10 @@
 	  (return))
 	 
 	 ((whitespace-char-p (schar line 0)) ;; Continuation line
-	  (if (null current) ;; Malformed header line
-	      (return)) 
+	  (when (null current) ;; Malformed header line
+	    (decf count bytes) 
+	    (mime-unread-line line end bytes)
+	    (return)) 
 	  
 	  (let ((newcons (cons (subseq line 0 end) nil)))
 	    (setf (cdr lastcons) newcons)
@@ -514,6 +515,7 @@
 	      ;; Malformed header line.  Unread it (so that it
 	      ;; will be treated as part of the body) and
 	      ;; consider the headers terminated.
+	      (decf count bytes)
 	      (mime-unread-line line end bytes)
 	      (return))
 	    
