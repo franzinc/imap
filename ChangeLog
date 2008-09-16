@@ -1,3 +1,8 @@
+2008-09-16  Mikel Bancroft  <mikel@gemini>
+
+	* rfe8214 - smtp.cl: Add support for SSL connections to secure
+          SMTP Servers. Also add support for STARTTLS negotiation.
+
 2008-05-21  Ahmon Dancy  <dancy@dancy>
 
 	* bug17849: Fix parse-mime-structure behavior when it

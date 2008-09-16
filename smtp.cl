@@ -1,4 +1,10 @@
-#+(version= 8 0)
+#+(version= 8 1)
+(sys:defpatch "smtp" 1
+  "v1: add smtp support for ssl connections and STARTTLS negotiation."
+  :type :system
+  :post-loadable t)
+
+#+(version= 8 0) ;; not current with latest sources
 (sys:defpatch "smtp" 5
   "v1: send-letter w/attachments; send-smtp* can take streams;
 v2: add :port argument to send-letter, send-smtp, send-smtp-auth;
@@ -8,7 +14,7 @@ v5: send-smtp-1: New external-format keyword arg."
   :type :system
   :post-loadable t)
 
-#+(version= 7 0)
+#+(version= 7 0) ;; not current with latest sources
 (sys:defpatch "smtp" 5
   "v2: send-letter w/attachments; send-smtp* can take streams;
 v3: add :port argument to send-letter, send-smtp, send-smtp-auth;
@@ -22,7 +28,7 @@ v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
 ;; smtp.cl
 ;;
 ;; copyright (c) 1986-2002 Franz Inc, Berkeley, CA  - All rights reserved.
-;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
+;; copyright (c) 2002-2008 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; This code is free software; you can redistribute it and/or
 ;; modify it under the terms of the version 2.1 of
@@ -43,7 +49,7 @@ v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
 ;; Suite 330, Boston, MA  02111-1307  USA
 ;;
 ;;
-;; $Id: smtp.cl,v 1.23 2007/04/17 22:01:42 layer Exp $
+;; $Id: smtp.cl,v 1.24 2008/09/16 23:22:14 layer Exp $
 
 ;; Description:
 ;;   send mail to an smtp server.  See rfc821 for the spec.
@@ -282,7 +288,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   ;;
 
   (let ((sock (connect-to-mail-server server login password)))
-  
+
     (unwind-protect
 	(progn
 	  
@@ -359,17 +365,32 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   ;; returning a socket connected to it and 
   ;; signaling an error if it can't be made.
   
-  (let ((port 25)) ;; standard SMTP port
+  (let ((use-port 25) ;; standard SMTP port
+	ssl-args
+	ssl
+	starttls)
     (if* (consp server)
-       then (setf port (cdr server))
-	    (setf server (car server))
+       then (if* (consp (cdr server))
+	       then ;; long form
+		    (setq ssl-args (cdr server))
+		    (setf server (car server))
+		    (setq ssl (getf ssl-args :ssl))
+		    (remf ssl-args :ssl)
+		    (setq use-port (or (getf ssl-args :port)
+				       (if ssl 465 use-port)))
+		    (remf ssl-args :port)
+		    (setq starttls (getf ssl-args :starttls))
+		    (remf ssl-args :starttls)
+	       else ;; short form
+		    (setf use-port (cdr server))
+		    (setf server (car server)))
      elseif (stringp server)
        then (multiple-value-bind (match whole m1 m2)
 		(match-re "^([^:]+):([0-9]+)$" server)
 	      (declare (ignore whole))
 	      (if* match
 		 then (setf server m1)
-		      (setf port (parse-integer m2)))))
+		      (setf use-port (parse-integer m2)))))
     
     (let ((ipaddr (determine-mail-server server))
 	  (sock)
@@ -379,15 +400,18 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 	 then (error "Can't determine ip address for mail server ~s" server))
       
       (setq sock (socket:make-socket :remote-host ipaddr
-				     :remote-port port
+				     :remote-port use-port
 				     ))
+      (when ssl
+	(setq sock (apply #'acl-socket:make-ssl-client-stream sock ssl-args)))
+      
       (unwind-protect
-	  (progn
+	  (tagbody
 	    (response-case (sock msg)
 			   (2 ;; to the initial connect
 			    nil)
 			   (t (error "initial connect failed: ~s" msg)))
-	  
+	    ehlo
 	    ;; now that we're connected we can compute our hostname
 	    (let ((hostname (socket:ipaddr-to-hostname
 			     (socket:local-host sock))))
@@ -395,10 +419,19 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 		 then (setq hostname
 			(format nil "[~a]" (socket:ipaddr-to-dotted
 					    (socket:local-host sock)))))
-	      (let ((mechs (smtp-ehlo sock hostname)))
-		(if (and mechs login password)
-		    (setf sock 
-		      (smtp-authenticate sock server mechs login password)))))
+	      (let ((mechs (smtp-ehlo sock hostname))
+		    auth-mechs)
+		(if* (and mechs starttls (member "STARTTLS" mechs :test #'string=))
+		   then (smtp-send-recv (sock (format nil "STARTTLS") msg)
+					(2 ;; ok
+					 (setq sock (acl-socket:make-ssl-client-stream sock :method :tlsv1)))
+					(t (smtp-transaction-error)))
+			(go ehlo)
+		 elseif (and mechs login password
+			     (setq auth-mechs (car (member "LOGIN" mechs
+						      :test #'(lambda (x y) (search x y))))))
+		   then (setf sock 
+			  (smtp-authenticate sock server auth-mechs login password)))))
 	  
 	    ;; all is good
 	    (setq ok t))
@@ -420,11 +453,16 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   (smtp-send-recv (sock (format nil "EHLO ~A" our-name) msg)
     (2 ;; ok
      ;; Collect the auth mechanisms.
-     (multiple-value-bind (found whole mechs)
-	 (match-regexp "250[- ]AUTH \\(.*\\)" msg)
-       (declare (ignore whole))
-       (if found
-	   mechs)))
+     (let (mechs)
+       (multiple-value-bind (found whole mech)
+	   (match-re "250[- ]AUTH (.*)" msg)
+	 (declare (ignore whole))
+	 (if found (push mech mechs)))
+       (multiple-value-bind (found whole mech)
+	   (match-re "250[- ](STARTTLS)" msg)
+	 (declare (ignore whole))
+	 (if found (push mech mechs)))
+       mechs))
     (t
      (smtp-send-recv (sock (format nil "HELO ~A" our-name) msg)
        (2 ;; ok
