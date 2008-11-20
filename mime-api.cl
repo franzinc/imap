@@ -15,13 +15,6 @@ v3: add mime structure parsing support."
   :type :system
   :post-loadable t)
 
-(sys:defpatch "mime" 2
-  "v0: New module.  See documentation.;
-v1: Improve default transfer encoding determination;
-v2: make-mime-part: Default external-format is :utf8."
-  :type :system
-  :post-loadable t)
-
 ;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; imap.cl
@@ -41,7 +34,7 @@ v2: make-mime-part: Default external-format is :utf8."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-api.cl,v 1.10 2008/11/20 21:23:14 layer Exp $
+;; $Id: mime-api.cl,v 1.11 2008/11/20 21:30:12 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
