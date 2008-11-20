@@ -1,3 +1,9 @@
+2008-11-19  Ahmon Dancy  <dancy@dancy>
+
+	* rfe8406: mime-api.cl: Improved performance of
+	charset-to-external-format by using a hash table for caching.
+	Also added ansi_x3.4-1968 as an alias for :latin1.
+
 2008-09-16  Mikel Bancroft  <mikel@gemini>
 
 	* rfe8214 - smtp.cl: Add support for SSL connections to secure

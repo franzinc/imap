@@ -1,7 +1,8 @@
 #+(version= 8 1)
-(sys:defpatch "mime" 2
+(sys:defpatch "mime" 3
   "v1: changes to internal/undocumented portions of module;
-v2: better parse-mime-structure behavior in the face of malformatted headers."
+v2: better parse-mime-structure behavior in the face of malformatted headers;
+v3: Improved performance when converting charset to external-format."
   :type :system
   :post-loadable t)
 
@@ -40,7 +41,7 @@ v2: make-mime-part: Default external-format is :utf8."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-api.cl,v 1.9 2008/05/21 21:01:56 layer Exp $
+;; $Id: mime-api.cl,v 1.10 2008/11/20 21:23:14 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
@@ -369,33 +370,63 @@ This is a multi-part message in MIME format.~%"))
    elseif (message-rfc822-p (mime-part-type part) (mime-part-subtype part))
      then (map-over-parts (mime-part-message part) function)))
 
-(defparameter *charset-to-ef*
-    '(("shift-jis" . :shiftjis)
-      ("us-ascii" . :latin1)
+;;
+
+(defparameter *default-charset-to-ef* 
+    '(("us-ascii" . :latin1)
+      ("ansi_x3.4-1968" . :latin1)
+      ("shift-jis" . :shiftjis)
       ("gbk" . :936)
-      #+ignore("euc-kr" :iso-2022-kr)
-      ))
+      #+ignore("euc-kr" :iso-2022-kr)))
+
+(defparameter *charset-to-ef* nil)
+
+(defparameter *charset-to-ef-lock* (mp:make-process-lock))
+
+(defparameter *debug-charset-to-ef* nil)
+
+(defun init-charset-to-ef ()
+  (let ((ht (make-hash-table :test #'equal)))
+    (dolist (pair *default-charset-to-ef*)
+      (setf (gethash (car pair) ht) (find-external-format (cdr pair) :errorp nil)))
+    (setf *charset-to-ef* ht)))
 
 (defun charset-to-external-format (charset)
   (setf charset (string-downcase charset))
-  (block nil
-    (let ((ef (find-external-format charset :errorp nil)))
-      (if ef
-	  (return ef))
-      (if (setf ef (cdr (assoc charset *charset-to-ef* :test #'string=)))
-	  (return (find-external-format ef)))
-      (multiple-value-bind (matched x inner)
-	  (match-re "^windows-(\\d+)$" charset)
-	(declare (ignore x))
-	(if (and matched (setf ef (find-external-format inner :errorp nil)))
-	    (return ef)))
-      (multiple-value-bind (matched x dig)
-	  (match-re "^iso-8859-(\\d+)(?:-[ie])?$" charset)
-	(declare (ignore x))
-	(if (and matched (setf ef (find-external-format (format nil "iso8859-~a" dig) :errorp nil)))
-	    (return ef)))
+  (mp:with-process-lock (*charset-to-ef-lock*)
+    (if (null *charset-to-ef*)
+	(init-charset-to-ef))
 
-      nil)))
+    (macrolet ((save-and-return (ef)
+		 (let ((ef-x (gensym)))
+		   `(let ((,ef-x ,ef))
+		      (progn (setf (gethash charset *charset-to-ef*) ,ef-x)
+			     (return-from charset-to-external-format ,ef-x))))))
+      
+      (let ((ef (gethash charset *charset-to-ef*)))
+	(if ef 
+	    (return-from charset-to-external-format ef)) ;; Use cached result
+	
+	(if (setf ef (find-external-format charset :errorp nil))
+	    (save-and-return ef))
+	
+	(multiple-value-bind (matched x inner)
+	    (match-re "^windows-(\\d+)$" charset)
+	  (declare (ignore x))
+	  (if (and matched (setf ef (find-external-format inner :errorp nil)))
+	      (save-and-return ef)))
+
+	(multiple-value-bind (matched x dig)
+	    (match-re "^iso-8859-(\\d+)(?:-[ie])?$" charset)
+	  (declare (ignore x))
+	  (if (and matched (setf ef (find-external-format (format nil "iso8859-~a" dig) :errorp nil)))
+	      (save-and-return ef)))
+
+	(if *debug-charset-to-ef*
+	    (format t "no external found for ~a~%" charset))
+	
+	;; No luck
+	nil))))
 
 (defun decode-header-text (text)
   (declare (optimize (speed 3))
