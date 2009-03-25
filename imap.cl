@@ -10,6 +10,12 @@
   :type :system
   :post-loadable t)
 
+#+(version= 8 1)
+(sys:defpatch "imap" 1
+  "v1: Add ssl/tls support for both imap/pop connections."
+  :type :system
+  :post-loadable t)
+
 ;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; imap.cl
@@ -29,7 +35,7 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: imap.cl,v 1.31 2007/04/17 22:01:42 layer Exp $
+;; $Id: imap.cl,v 1.32 2009/03/25 22:46:02 layer Exp $
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in
@@ -373,25 +379,70 @@
       (setf (aref str 1) #\linefeed)
       str))
 
+;; returns values: socket starttls
+;; server is a cons of the form:
+;; (server-name &key (port 25) (ssl nil) (starttls nil) ...ssl-client-keywords...)
+(defun connect-to-imap/pop-server (server-info server-type)
+  (macrolet ((pop-keyword (k l) `(prog1 (getf ,l ,k) (remf ,l ,k)))
+	     (server-port (ssl type) `(cond ((eq ,type :imap) (if ,ssl 993 143))
+					    ((eq ,type :pop) (if ,ssl 995 110)))))
+    (let* ((server (car server-info))
+	   (ssl-args (cdr server-info))
+	   ssl port starttls sock)
+      (setq ssl (pop-keyword :ssl ssl-args))
+      (setq port (or (pop-keyword :port ssl-args) (server-port ssl server-type)))
+      (setq starttls (pop-keyword :starttls ssl-args))
+      (setq sock (socket:make-socket :remote-host server
+				     :remote-port port))
+      (when ssl
+	(setq sock (apply #'socket:make-ssl-client-stream sock ssl-args)))
+      
+      (values sock starttls))) )
+
 (defun make-imap-connection (host &key (port 143) 
 				       user 
 				       password
 				       (timeout 30))
-  (let* ((sock (socket:make-socket :remote-host host
-				   :remote-port port))
-	 (imap (make-instance 'imap-mailbox
-		 :socket sock
-		 :host   host
-		 :timeout timeout
-		 :state :unauthorized)))
+  (multiple-value-bind (sock starttls)
+      (if (consp host)
+	  (connect-to-imap/pop-server host :imap)
+	(socket:make-socket :remote-host host :remote-port port))
+    (let ((imap (make-instance 'imap-mailbox
+		  :socket sock
+		  :host   host
+		  :timeout timeout
+		  :state :unauthorized)))
     
     (multiple-value-bind (tag cmd count extra comment)
 	(get-and-parse-from-imap-server imap)
-      (declare (ignore cmd count extra))
+      (declare (ignorable cmd count extra))
       (if* (not (eq :untagged tag))
 	 then  (po-error :error-response
 			 :server-string comment)))
       
+    ; check for starttls negotiation
+    (when starttls
+      (let (capabilities)
+	(send-command-get-results
+	 imap "CAPABILITY"
+	 #'(lambda (mb cmd count extra comment)
+	     (declare (ignorable mb cmd count extra))
+	     (setq capabilities comment))
+	 #'(lambda (mb cmd count extra comment)
+	     (check-for-success mb cmd count extra comment
+				"CAPABILITY")))
+	(when (and capabilities (match-re "STARTTLS" capabilities :case-fold t
+					  :return nil))
+	  ;; negotiate starttls
+	  (send-command-get-results imap "STARTTLS"
+				    #'handle-untagged-response
+				    #'(lambda (mb cmd count extra comment)
+					(check-for-success mb cmd count extra comment
+							   "STARTTLS")
+					(setf (post-office-socket mb)
+					  (socket:make-ssl-client-stream
+					   (post-office-socket mb) :method :tlsv1)))))))
+
     ; now login
     (send-command-get-results imap 
 			      (format nil "login ~a ~a" user password)
@@ -410,7 +461,7 @@
     
 				    
 				    
-    imap))
+    imap)))
 
 
 (defmethod close-connection ((mb imap-mailbox))
@@ -452,9 +503,11 @@
 				      user
 				      password
 				      (timeout 30))
-  (let* ((sock (socket:make-socket :remote-host host
-				   :remote-port port))
-	 (pop (make-instance 'pop-mailbox
+  (multiple-value-bind (sock starttls)
+      (if (consp host)
+	  (connect-to-imap/pop-server host :pop)
+	(socket:make-socket :remote-host host :remote-port port))
+    (let ((pop (make-instance 'pop-mailbox
 		:socket sock
 		:host   host
 		:timeout timeout
@@ -467,6 +520,15 @@
 			 :format-control
 			 "unexpected line from server after connect")))
       
+    ; check for starttls negotiation
+    (when starttls
+      (let ((capabilities (send-pop-command-get-results pop "capa" t)))
+	(when (and capabilities (match-re "STLS" capabilities :case-fold t
+					  :return nil))
+	  (send-pop-command-get-results pop "STLS")		   
+	  (setf (post-office-socket pop) (socket:make-ssl-client-stream 
+					  (post-office-socket pop) :method :tlsv1)))))
+    
     ; now login
     (send-pop-command-get-results pop (format nil "user ~a" user))
     (send-pop-command-get-results pop (format nil "pass ~a" password))
@@ -476,7 +538,7 @@
     
     			    
 				    
-    pop))
+    pop)))
 			    
 
 (defmethod send-command-get-results ((mb imap-mailbox) 
