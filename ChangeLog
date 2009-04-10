@@ -1,3 +1,7 @@
+2009-03-12  Mikel Bancroft  <mikel@gemini>
+
+	* rfe8602: add ssl/tls support to imap/pop module.
+	
 2008-11-19  Ahmon Dancy  <dancy@dancy>
 
 	* rfe8406: mime-api.cl: Improved performance of
