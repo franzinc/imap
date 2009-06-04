@@ -1,0 +1,117 @@
+imap: A common lisp library for sending and receiving email.
+
+**********************************************************************
+
+Table of contents:
+
+   1. Description
+   2. Author
+   3. Author comments
+   4. Documentation
+   5. Platforms
+   6. Dependencies
+   7. Installation
+   8. Configuration
+   9. Licence
+  10. Notes
+  11. Examples
+  12. Open Source 
+
+**********************************************************************
+
+   1. Description:
+
+      A client library for sending and receiving email.
+
+   2. Author:
+
+      John Foderaro
+
+   3. Author comments:
+
+      The most popular protocol for accessing a mailbox was the Post
+      Office Protocol (POP) defined in rfc1939.  While it is popular
+      pop has very few features. It doesn't allow you to manage the
+      mail on the server itself, instead you usually just download all
+      mail to your local machine. A much more powerful protocol called
+      the Internet Message Access Protocol (IMAP) was defined in the
+      1996 document rfc2060. With imap you can work with your mail
+      while it's on the server and can create folders on the server in
+      which to archive your mail. Thus the server itself can be the
+      message store which is useful if you want to access your mail
+      from more than one machine. You are not required to use the
+      server to archive your mail with imap, you can use it like pop
+      and download all the mail to your local machine.
+
+      Sending email is done via the Simple Mail Transfer Protocol
+      (SMTP). You can use smtp to send mail directly to the
+      destination but typically this is not done because the
+      destination machine may be down or unreachable at the time you
+      wish to send the mail. Most organizations have a local mail
+      server that is up and reachable all of the time. You can use
+      smtp to send your letter to that local mail server and it will
+      then take over the job of getting the mail to the destination
+      (which may involve queueing the message and retrying to send it
+      over a period of days).
+
+   4. Platforms:
+          
+      Allegro Common Lisp 7.0 and newer on all platforms.
+
+   5. Dependencies:
+
+      None, but for the test suite, tester is required and can be
+      found on http://opensource.franz.com
+
+   6. Installation:
+
+      a. Start acl
+
+      b. load the load.cl file
+
+        :ld /path/to/load.cl
+
+   7. Configuration:
+
+      The net.post-office::*debug-imap* and net.post-office::*smtp-debug*  
+      variables, when set to true will produce extra debug information.
+ 
+   8. Documentation:
+
+      For pop and imap interfaces see:
+
+        http://franz.com/support/documentation/current/doc/imap.htm
+
+      For the smtp interface see:
+
+        http://franz.com/support/documentation/current/doc/imap.htm#smtp-1
+
+      Also see the imap.html file that is included with this source
+      code.
+
+   9. License:
+
+      The aserve source code is licensed under the terms of the Lisp
+      Lesser GNU Public License, known as the LLGPL. The LLGPL
+      consists of a preamble and the LGPL. Where these conflict, the
+      preamble takes precedence. imap is referenced in the preamble as
+      the LIBRARY. (http://opensource.franz.com/preamble.html)
+ 
+  10. Notes:
+
+      For reference please see rfc1939 (pop) and rfc2060 (imap).
+ 
+  11. Examples and Information:
+
+      See the first link in the documenation section (#8) above for
+      examples.  
+
+  12. Open Source:
+
+      This project is hosted on the http://opensource.franz.com
+      site. There is an informal community support and development
+      mailing list (opensource@franz.com) for these open source
+      projects. We encourage you to take advantage by subscribing to
+      the list by visiting http://opensource.franz.com/mailinglist.html.
+      Once you're subscribed, send email to opensource@franz.com with
+      your questions, comments, suggestions, and patches. 
