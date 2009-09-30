@@ -3,7 +3,7 @@
   "v1: changes to internal/undocumented portions of module;
 v2: better parse-mime-structure behavior in the face of malformatted headers;
 v3: Improved performance when converting charset to external-format;
-v4: Handle underscore character in quoted printable encoding."
+v4: decode-header-text: handle underscore & remove soft newlines."
   :type :system
   :post-loadable t)
 
