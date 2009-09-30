@@ -184,6 +184,8 @@
 					 then (return)
 					 else (out byte3))
 				 else (out value)))))
+	   elseif (eq byte #.(char-code #\_))
+	     then (out #.(char-code #\space))
 	     else (out byte)))
 	
 	t))))
@@ -260,6 +262,8 @@
 					 then (return)
 					 else (out byte3))
 				 else (out value)))))
+	   elseif (eq byte #.(char-code #\_))
+	     then (out #.(char-code #\space))
 	     else (out byte)))
 	
 	(values out start2)))))
