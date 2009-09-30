@@ -1,5 +1,15 @@
 2009-09-30  Kevin Layer  <layer@gemini.franz.com>
 
+	* mime-api.cl: rfe9010: decode-header-text: remove "soft"
+	  newlines in the decoded text
+	* mime-transfer-encoding.cl: bug18636: underscore handling:
+	  refine previous fix to be more surgical and conditional on a
+	  keyword argument, because other routines use these functions
+	* t-imap.cl: the start of a test suite for the mime side of
+	  things
+
+2009-09-30  Kevin Layer  <layer@gemini.franz.com>
+
 	* mime-transfer-encoding.cl: bug18636: handle underscore
 	  character in quoted printable encoding
 

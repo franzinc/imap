@@ -426,18 +426,22 @@ This is a multi-part message in MIME format.~%"))
   (declare (optimize (speed 3))
 	   (string text))
   (let ((pos 0)
-	(len (length text)))
+	(len (length text))
+	last-tail)
     (declare (fixnum pos len))
     (with-output-to-string (res)
       (while (< pos len)
-	(multiple-value-bind (matched whole charset encoding encoded)
-	    (match-re "=\\?([^?]+)\\?(q|b)\\?(.*?)\\?=" text 
+	(multiple-value-bind (matched whole charset encoding encoded tail)
+	    (match-re "=\\?([^?]+)\\?(q|b)\\?(.*?)\\?=(\\s+)?" text 
 		      :start pos
 		      :case-fold t
 		      :return :index)
 	  
-	  (if (null matched)
-	      (return))
+	  (when (null matched)
+	    (when last-tail
+	      (write-string text res
+			    :start (car last-tail) :end (cdr last-tail)))
+	    (return))
 	  
 	  ;; Write out the "before" stuff.
 	  (write-string text res :start pos :end (car whole))
@@ -451,7 +455,8 @@ This is a multi-part message in MIME format.~%"))
 		then (qp-decode-string text
 				       :start (car encoded)
 				       :end (cdr encoded)
-				       :external-format ef)
+				       :external-format ef
+				       :underscores-are-spaces t)
 		else ;; FIXME: Clean this up with/if rfe6174 is completed.
 		     (octets-to-string
 		      (base64-string-to-usb8-array 
@@ -459,7 +464,8 @@ This is a multi-part message in MIME format.~%"))
 		      :external-format ef))
 	     res))
 	  
-	  (setf pos (cdr whole))))
+	  (setf pos (cdr whole))
+	  (setf last-tail tail)))
 	  
       ;; Write out the remaining portion.
       (write-string text res :start pos))))

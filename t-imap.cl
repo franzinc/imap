@@ -20,6 +20,8 @@
 ;; requires smtp module too
 
 (eval-when (compile load eval)
+  (require :smtp)
+  (require :imap)
   (require :test))
 
 
@@ -227,30 +229,34 @@
     
     (net.post-office:close-connection pb)))
 
+
+(defun test-mime ()
+  (test-equal
+   "foobar baz"
+   (net.post-office:decode-header-text "=?utf-8?q?foo?=
+  =?utf-8?q?bar?= baz"))
+  (test-equal
+   "before brucejones hello"
+   (net.post-office:decode-header-text "before =?utf-8?q?bruce?=    =?utf-8?q?jones?= hello"))
+  (test-equal
+   "[Franz Wiki] Update of \"Office/EmployeeDirectory\" by SteveHaflich"
+   (net.post-office:decode-header-text "=?utf-8?q?=5BFranz_Wiki=5D_Update_of_=22Office/EmployeeDirectory=22_by_St?=
+ =?utf-8?q?eveHaflich?="))
+  )
 	  
     
 (defun test-imap ()
   (handler-bind ((net.post-office:po-condition 
 		  #'(lambda (con)
 		      (format t "Got imap condition: ~a~%" con))))
-				       
-    (test-connect)
-  
-    (test-sends)
-
-    (test-flags)
- 
-    (test-mailboxes)
-
-    (test-pop)
-  
-  
-    ))
+    (test-mime)
+;;;; Only jkf is setup to run the tests.
+    (when (string= "jkf" (sys:getenv "USER"))
+      (test-connect)
+      (test-sends)
+      (test-flags)
+      (test-mailboxes)
+      (test-pop))))
 
 
 (if* *do-test* then (do-test :imap #'test-imap))
-    
-    
-    
-    
-  

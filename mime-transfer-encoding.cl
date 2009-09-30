@@ -184,8 +184,6 @@
 					 then (return)
 					 else (out byte3))
 				 else (out value)))))
-	   elseif (eq byte #.(char-code #\_))
-	     then (out #.(char-code #\space))
 	     else (out byte)))
 	
 	t))))
@@ -197,7 +195,8 @@
 ;;  1) the supplied or allocated array
 ;;  2) the just past the last byte populated in the array.
 (defun qp-decode-usb8 (in out &key (start1 0) (end1 (length in))
-				   (start2 0) end2)
+				   (start2 0) end2
+				   underscores-are-spaces)
   (declare (optimize (speed 3))
 	   ((simple-array (unsigned-byte 8) (*)) in out)
 	   (fixnum start1 end1 start2 end2))
@@ -262,20 +261,24 @@
 					 then (return)
 					 else (out byte3))
 				 else (out value)))))
-	   elseif (eq byte #.(char-code #\_))
-	     then (out #.(char-code #\space))
+	   elseif (and underscores-are-spaces (eq byte #.(char-code #\_)))
+	     then ;; See the discussion in bug18636 about why this is
+		  ;; done.
+		  (out #.(char-code #\space))
 	     else (out byte)))
 	
 	(values out start2)))))
 
 (defun qp-decode-string (string &key (start 0) (end (length string))
 				     (return :string)
-				     (external-format :default))
+				     (external-format :default)
+				     underscores-are-spaces)
   (multiple-value-bind (vec len)
       (string-to-octets string :start start :end end :null-terminate nil
 			:external-format :latin1)
     (multiple-value-setq (vec len)
-      (qp-decode-usb8 vec vec :end1 len))
+      (qp-decode-usb8 vec vec :end1 len
+		      :underscores-are-spaces underscores-are-spaces))
     (ecase return
       (:string
        (octets-to-string vec :end len :external-format external-format))
@@ -316,5 +319,3 @@
    (t
     ;; defined in mime-parse.cl
     (stream-to-stream-copy outstream instream count))))
-    
-
