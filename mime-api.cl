@@ -1,8 +1,9 @@
 #+(version= 8 1)
-(sys:defpatch "mime" 3
+(sys:defpatch "mime" 4
   "v1: changes to internal/undocumented portions of module;
 v2: better parse-mime-structure behavior in the face of malformatted headers;
-v3: Improved performance when converting charset to external-format."
+v3: Improved performance when converting charset to external-format;
+v4: Handle underscore character in quoted printable encoding."
   :type :system
   :post-loadable t)
 
