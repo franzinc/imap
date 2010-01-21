@@ -2101,20 +2101,25 @@
 ;;-- reusable line buffers
 
 (defvar *line-buffers* nil)
+(defvar *line-buffers-lock* (make-basic-lock :name "line-buffers"))
 
 (defun get-line-buffer (size)
   ;; get a buffer of at least size bytes
   (setq size (min size (1- array-total-size-limit)))
-  (mp::without-scheduling
-    (dolist (buff *line-buffers* (make-string size))
-	(if* (>= (length buff) size)
-	   then ; use this one
-		(setq *line-buffers* (delete buff *line-buffers*))
-		(return buff)))))
+  (let ((found 
+	 (with-locked-structure (*line-buffers-lock*
+				 :non-smp :without-scheduling)
+	   (dolist (buff *line-buffers*)
+	     (if* (>= (length buff) size)
+		then ;; use this one
+		     (setq *line-buffers* (delete buff *line-buffers*))
+		     (return buff))))))
+    (or found  (make-string size))))
 
 
 (defun free-line-buffer (buff)
-  (mp:without-scheduling
+  (with-locked-structure (*line-buffers-lock*
+			  :non-smp :without-scheduling)
     (push buff *line-buffers*)))
 
 (defun init-line-buffer (new old)
