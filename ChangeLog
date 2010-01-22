@@ -2,6 +2,11 @@
 
 	* imap.cl: threadsafe resource management
 
+2009-12-21  Kevin Layer  <layer@gemini.franz.com>
+
+	* mime-api.cl (decode-header-text): bug18646: put in error
+	  check for `nil'.
+
 2009-09-30  Kevin Layer  <layer@gemini.franz.com>
 
 	* mime-api.cl: rfe9010: decode-header-text: remove "soft"
