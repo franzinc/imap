@@ -1,5 +1,9 @@
 2010-02-05  Robert Rorschach  <rfr@franz.com>
 
+	* imap.cl: fix bad package qualifier
+
+2010-02-05  Robert Rorschach  <rfr@franz.com>
+
 	* imap.cl: backward compatibility to 7.0 - 8.2, bump minor
 	version number.
 

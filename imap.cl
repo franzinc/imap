@@ -2111,7 +2111,7 @@
 			   :non-smp :without-scheduling)
      ,@body)
 #-(version>= 8 1)
-  `(excl::without-scheduling ,@body)
+  `(sys::without-scheduling ,@body)
   )
 
 (defun get-line-buffer (size)
