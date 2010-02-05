@@ -116,7 +116,7 @@
 
 (provide :imap)
 
-(defparameter *imap-version-number* '(:major 1 :minor 13)) ; major.minor
+(defparameter *imap-version-number* '(:major 1 :minor 14)) ; major.minor
 
 ;; todo
 ;;  have the list of tags selected done on a per connection basis to
@@ -2101,14 +2101,24 @@
 ;;-- reusable line buffers
 
 (defvar *line-buffers* nil)
+
+#+(version>= 8 1)
 (defvar *line-buffers-lock* (make-basic-lock :name "line-buffers"))
+
+(defmacro with-locked-line-buffers (&rest body)
+#+(version>= 8 1)
+  `(with-locked-structure (*line-buffers-lock*
+			   :non-smp :without-scheduling)
+     ,@body)
+#-(version>= 8 1)
+  `(excl::without-scheduling ,@body)
+  )
 
 (defun get-line-buffer (size)
   ;; get a buffer of at least size bytes
   (setq size (min size (1- array-total-size-limit)))
   (let ((found 
-	 (with-locked-structure (*line-buffers-lock*
-				 :non-smp :without-scheduling)
+	 (with-locked-line-buffers
 	   (dolist (buff *line-buffers*)
 	     (if* (>= (length buff) size)
 		then ;; use this one
@@ -2116,10 +2126,8 @@
 		     (return buff))))))
     (or found  (make-string size))))
 
-
 (defun free-line-buffer (buff)
-  (with-locked-structure (*line-buffers-lock*
-			  :non-smp :without-scheduling)
+  (with-locked-line-buffers
     (push buff *line-buffers*)))
 
 (defun init-line-buffer (new old)
