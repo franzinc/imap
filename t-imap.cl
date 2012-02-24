@@ -1,4 +1,4 @@
-;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
+;; copyright (c) 2002-2012 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; The software, data and information contained herein are proprietary
 ;; to, and comprise valuable trade secrets of, Franz, Inc.  They are

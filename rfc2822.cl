@@ -1,7 +1,7 @@
 ;; -*- mode: common-lisp; package: net.mail -*-
 ;;
 ;; copyright (c) 1999-2002 Franz Inc, Berkeley, CA - All rights reserved.
-;; copyright (c) 2002-2007 Franz Inc, Oakland, CA - All rights reserved.
+;; copyright (c) 2002-2012 Franz Inc, Oakland, CA - All rights reserved.
 ;;
 ;; This code is free software; you can redistribute it and/or
 ;; modify it under the terms of the version 2.1 of
