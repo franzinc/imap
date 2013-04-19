@@ -1,3 +1,9 @@
+#+(version= 8 2)
+(sys:defpatch "smtp" 1
+  "v1: Handle SMTP servers which violate SMTP SASL AUTH protocol."
+  :type :system
+  :post-loadable t)
+
 #+(version= 8 1)
 (sys:defpatch "smtp" 1
   "v1: add smtp support for ssl connections and STARTTLS negotiation."
@@ -472,7 +478,8 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 (defun smtp-authenticate (sock server mechs login password)
   (let ((ctx (net.sasl:sasl-client-new "smtp" server
 				       :user login
-				       :pass password)))
+				       :pass password))
+	(first-server-response t))
     (multiple-value-bind (res selected-mech response)
 	(net.sasl:sasl-client-start ctx mechs)
       (if (not (eq res :continue))
@@ -481,12 +488,30 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
       (loop
 	(response-case (sock msg)
 	  (3  ;; need more interaction
-	   (multiple-value-setq (res response)
-	     (net.sasl:sasl-step 
-	      ctx 
-	      (base64-string-to-usb8-array (subseq msg 4))))
-	   (smtp-command sock "~a" 
-			 (usb8-array-to-base64-string response nil)))
+	   ;; [rfe12276] Some SMTP servers (notably The Amazon SES
+	   ;; SMTP endpoint (email-smtp.us-east-1.amazonaws.com))
+	   ;; violate the protocol rules on the first server response.
+	   ;; Apparently other SMTP clients are tolerant of this, so
+	   ;; we try to be as well.
+	   
+	   (multiple-value-bind (decoded-server-response err)
+	       (ignore-errors (base64-string-to-usb8-array (subseq msg 4)))
+	     (when (null decoded-server-response)
+	       (if* first-server-response
+		  then ;; Ignore initial server response if it's
+		       ;; bogus.
+		       ;;;(warn "Bogus server initial response: ~s~%" (subseq msg 4))
+		       (setf first-server-response nil)
+		  else ;; We tolerate a bogus initial response, but no others
+		       (error "Failed to decode server response of ~s: ~a"
+			      (subseq msg 4)
+			      err)))
+	     
+	     (multiple-value-setq (res response)
+	       (net.sasl:sasl-step ctx decoded-server-response))
+	     
+	     (smtp-command sock "~a" 
+			   (usb8-array-to-base64-string response nil))))
 	  (2 ;; server is satisfied.
 	   ;; Make sure the auth process really completed
 	   (if (not (net.sasl:sasl-conn-auth-complete-p ctx))
