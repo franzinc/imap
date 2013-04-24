@@ -1,4 +1,5 @@
-#+(version= 8 2)
+#+(or (version= 8 2)
+      (version= 9 0))
 (sys:defpatch "smtp" 1
   "v1: Handle SMTP servers which violate SMTP SASL AUTH protocol."
   :type :system
