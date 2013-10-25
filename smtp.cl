@@ -1,38 +1,5 @@
-#+(or (version= 8 2)
-      (version= 9 0))
-(sys:defpatch "smtp" 1
-  "v1: Handle SMTP servers which violate SMTP SASL AUTH protocol."
-  :type :system
-  :post-loadable t)
-
-#+(version= 8 1)
-(sys:defpatch "smtp" 1
-  "v1: add smtp support for ssl connections and STARTTLS negotiation."
-  :type :system
-  :post-loadable t)
-
-#+(version= 8 0) ;; not current with latest sources
-(sys:defpatch "smtp" 5
-  "v1: send-letter w/attachments; send-smtp* can take streams;
-v2: add :port argument to send-letter, send-smtp, send-smtp-auth;
-v3: fix incompatibility introduced in v2;
-v4: remove stray force-output of t;
-v5: send-smtp-1: New external-format keyword arg."
-  :type :system
-  :post-loadable t)
-
-#+(version= 7 0) ;; not current with latest sources
-(sys:defpatch "smtp" 5
-  "v2: send-letter w/attachments; send-smtp* can take streams;
-v3: add :port argument to send-letter, send-smtp, send-smtp-auth;
-v4: fix incompatibility introduced in v3;
-v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
-  :type :system
-  :post-loadable t)
-
 ;; -*- mode: common-lisp; package: net.post-office -*-
-;;
-;; smtp.cl
+;; send mail to an smtp server.  See rfc821 for the spec.
 ;;
 ;; copyright (c) 1986-2002 Franz Inc, Berkeley, CA  - All rights reserved.
 ;; copyright (c) 2002-2013 Franz Inc, Oakland, CA - All rights reserved.
@@ -54,20 +21,26 @@ v5: rm stray force-output of t; send-smtp-1: New external-format keyword arg."
 ;; http://www.gnu.org/copyleft/lesser.txt (until superseded by a newer
 ;; version) or write to the Free Software Foundation, Inc., 59 Temple Place, 
 ;; Suite 330, Boston, MA  02111-1307  USA
-;;
-;;
-;; $Id: smtp.cl,v 1.24 2008/09/16 23:22:14 layer Exp $
 
-;; Description:
-;;   send mail to an smtp server.  See rfc821 for the spec.
+#+(or (version= 8 2)
+      (version= 9 0))
+(sys:defpatch "smtp" 2
+  "v1: Handle SMTP servers which violate SMTP SASL AUTH protocol;
+v2: add new type of server argument to send-letter."
+  :type :system
+  :post-loadable t)
 
-;;- This code in this file obeys the Lisp Coding Standard found in
-;;- http://www.franz.com/~jkf/coding_standards.html
-;;-
+#+(version= 8 1)
+(sys:defpatch "smtp" 1
+  "v1: add smtp support for ssl connections and STARTTLS negotiation."
+  :type :system
+  :post-loadable t)
 
+(eval-when (compile eval load)
+  (require :osi))
 
 (defpackage :net.post-office
-  (:use #:lisp #:excl)
+  (:use #:lisp #:excl #:excl.osi)
   (:export 
    #:send-letter
    #:send-smtp
@@ -268,16 +241,65 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 		(setf (mime-part-parts message) (append parts-save res))))
       
       (with-mime-part-constructed-stream (s message)
-	(send-smtp-auth server from (append tos ccs bccs)
-			login password
-			hdrs
-			user-headers
-			s))
+	(if* (and (consp server) (eq :program (car server)))
+	   then (send-external-program (cdr server) hdrs user-headers s)
+	   else (send-smtp-auth server from (append tos ccs bccs)
+				login password
+				hdrs
+				user-headers
+				s)))
       
       (setf (mime-part-parts message) parts-save)
       t)))
-    
-    
+
+(defun send-external-program (program &rest messages
+			      &aux (external-format :default))
+  (multiple-value-bind (stdout stderr exit-status)
+      (command-output
+       (if* (stringp program)
+	  then program
+	elseif (consp program)
+	  then #+mswindows program
+	       #-mswindows (apply #'vector (car program) program)
+	  else (error "Bad program argument: ~s." program))
+       :input (lambda (stream)
+		(create-message stream messages external-format)))
+    (when (/= 0 exit-status)
+      (error "external program failed to send email (~s, ~s)."
+	     stdout stderr))))
+
+(defun create-message (output-stream messages external-format)
+  (let ((at-bol t) 
+	(prev-ch nil)
+	ch input-stream)
+    (dolist (message messages)
+      (when message
+	(setq input-stream
+	  (if* (streamp message)
+	     then message 
+	     else (make-buffer-input-stream
+		   (string-to-octets 
+		    message 
+		    :null-terminate nil
+		    :external-format external-format))))
+
+	(while (setf ch (read-byte input-stream nil))
+	  (if* (and at-bol (eq ch #.(char-code #\.)))
+	     then ;; to prevent . from being interpreted as eol
+		  (write-char #\. output-stream))
+	  (if* (eq ch #.(char-code #\newline))
+	     then (setq at-bol t)
+		  (if* (not (eq prev-ch #.(char-code #\return)))
+		     then (write-char #\return output-stream))
+	     else (setq at-bol nil))
+	  (write-byte ch output-stream)
+	  (setq prev-ch ch)))))
+  (write-char #\return output-stream)
+  (write-char #\linefeed output-stream)
+  (write-char #\. output-stream)
+  (write-char #\return output-stream)
+  (write-char #\linefeed output-stream))
+
 (defun send-smtp (server from to &rest messages)
   (send-smtp-1 server from to nil nil messages))
 	  
@@ -285,7 +307,10 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
   (send-smtp-1 server from to login password messages))
 
 (defun send-smtp-1 (server from to login password messages
-		    &key (external-format :default))
+		    &key (external-format
+			  ;; Never used, this might as well be an &aux
+			  ;; variable
+			  :default))
   ;; send the effective concatenation of the messages via
   ;; smtp to the mail server
   ;; Each message should be a string or a stream.
@@ -324,36 +349,8 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 	    (t (smtp-transaction-error)))
 	  
 	  
+	  (create-message sock messages external-format)
 	  
-	  (let ((at-bol t) 
-		(prev-ch nil)
-		ch stream)
-	    (dolist (message messages)
-	      (when message
-		(setf stream (if* (streamp message)
-				then message 
-				else (make-buffer-input-stream
-				      (string-to-octets 
-				       message 
-				       :null-terminate nil
-				       :external-format external-format))))
-
-		(while (setf ch (read-byte stream nil))
-		  (if* (and at-bol (eq ch #.(char-code #\.)))
-		     then ;; to prevent . from being interpreted as eol
-			  (write-char #\. sock))
-		  (if* (eq ch #.(char-code #\newline))
-		     then (setq at-bol t)
-			  (if* (not (eq prev-ch #.(char-code #\return)))
-			     then (write-char #\return sock))
-		     else (setq at-bol nil))
-		  (write-byte ch sock)
-		  (setq prev-ch ch)))))
-
-	  (write-char #\return sock) (write-char #\linefeed sock)
-	  (write-char #\. sock)
-	  (write-char #\return sock) (write-char #\linefeed sock)
-	
 	  (response-case (sock msg)
 	    (2 nil ; (format t "Message sent to ~a~%" to)
 	       )
@@ -366,6 +363,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 	    (t (smtp-transaction-error))))
       ;; Cleanup
       (close sock))))
+	
 
 (defun connect-to-mail-server (server login password)
   ;; make that initial connection to the mail server
