@@ -13,18 +13,16 @@
 ;; but without any warranty; without even the implied warranty of
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
-;;
-;; $Id: rfc2822.cl,v 1.11 2007/09/24 22:17:45 layer Exp $
 
-#+(version= 8 0)
-(sys:defpatch "rfc2822" 0
-  "v0: New module.  See documentation."
+#+(version= 9 0)
+(sys:defpatch "rfc2822" 1
+  "v1: parse-email-address: check length of local-part"
   :type :system
   :post-loadable t)
 
-#+(version= 8 1)
+#+(version= 8 2)
 (sys:defpatch "rfc2822" 1
-  "v1: extract-email-addresses enhancements & parsing fix."
+  "v1: parse-email-address: check length of local-part"
   :type :system
   :post-loadable t)
 
@@ -126,16 +124,18 @@ domain.
       
 (defun parse-email-address (string &key (require-domain t)
 					(require-dotted-domain t))
-  (multiple-value-bind (matched x user domain)
+  (multiple-value-bind (matched x local-part domain)
       (match-re #.*email-address-re* string)
     (declare (ignore x))
     (if* (or 
 	  ;; Failure cases
 	  (not matched) 
 	  (and require-domain (null domain))
-	  (and require-dotted-domain domain (zerop (count #\. domain))))
+	  (and require-dotted-domain domain (zerop (count #\. domain)))
+	  ;; From rfc3696
+	  (> (length local-part) 64))
        then nil
-       else (values user domain))))
+       else (values local-part domain))))
 
 ;; Returns a list of entries like so: 
 ;;  (:mailbox display-name user domain)

@@ -1,12 +1,3 @@
-<HEAD>
-<TITLE>rfc1939</TITLE>
-</HEAD>
-
-<H1>rfc1939</H1>
-Press <A NAME=id1 HREF="http://www.cis.ohio-state.edu/hypertext/information/rfc.html">here</A>
-to go to the top of the rfc 'tree'.<p>
-
-<PRE>
 
 
 
@@ -14,10 +5,10 @@ to go to the top of the rfc 'tree'.<p>
 
 
 Network Working Group                                           J. Myers
-Request for Comments: <A NAME=id18 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                               Carnegie Mellon
+Request for Comments: 1939                               Carnegie Mellon
 STD: 53                                                          M. Rose
-Obsoletes: <A NAME=id22 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1725.html">1725</A>                             Dover Beach Consulting, Inc.
-Category: Standards Track                                       May <A NAME=id24 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1996.html">1996</A>
+Obsoletes: 1725                             Dover Beach Consulting, Inc.
+Category: Standards Track                                       May 1996
 
 
                     Post Office Protocol - Version 3
@@ -60,13 +51,13 @@ Table of Contents
    13. Security Considerations ....................................   20
    14. Acknowledgements ...........................................   20
    15. Authors' Addresses .........................................   21
-   Appendix A. Differences from RFC <A NAME=id111 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1725.html">1725</A> ..........................   22
+   Appendix A. Differences from RFC 1725 ..........................   22
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 1]
+Myers & Rose                Standards Track                     [Page 1]
 
-RFC <A NAME=id123 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
    Appendix B. Command Index ......................................   23
@@ -76,7 +67,7 @@ RFC <A NAME=id123 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
    On certain types of smaller nodes in the Internet it is often
    impractical to maintain a message transport system (MTS).  For
    example, a workstation may not have sufficient resources (cycles,
-   disk space) in order to permit a SMTP server [RFC<A NAME=id144 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc821.html">821</A>] and associated
+   disk space) in order to permit a SMTP server [RFC821] and associated
    local mail delivery system to be kept resident and continuously
    running.  Similarly, it may be expensive (or impossible) to keep a
    personal computer interconnected to an IP-style network for long
@@ -96,7 +87,7 @@ RFC <A NAME=id123 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
    POP3 is not intended to provide extensive manipulation operations of
    mail on the server; normally, mail is downloaded and then deleted.  A
    more advanced (and complex) protocol, IMAP4, is discussed in
-   [RFC<A NAME=id185 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1730.html">1730</A>].
+   [RFC1730].
 
    For the remainder of this memo, the term "client host" refers to a
    host making use of the POP3 service, while the term "server host"
@@ -120,9 +111,9 @@ RFC <A NAME=id123 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 2]
+Myers & Rose                Standards Track                     [Page 2]
 
-RFC <A NAME=id237 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
 3. Basic Operation
@@ -176,9 +167,9 @@ RFC <A NAME=id237 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 3]
+Myers & Rose                Standards Track                     [Page 3]
 
-RFC <A NAME=id349 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
    issued the QUIT command, the session enters the UPDATE state.  In
@@ -214,7 +205,7 @@ RFC <A NAME=id349 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
    possible mechanisms for doing this are described in this document,
    the USER and PASS command combination and the APOP command.  Both
    mechanisms are described later in this document.  Additional
-   authentication mechanisms are described in [RFC<A NAME=id422 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1734.html">1734</A>].  While there is
+   authentication mechanisms are described in [RFC1734].  While there is
    no single authentication mechanism that is required of all POP3
    servers, a POP3 server must of course support at least one
    authentication mechanism.
@@ -232,9 +223,9 @@ RFC <A NAME=id349 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 4]
+Myers & Rose                Standards Track                     [Page 4]
 
-RFC <A NAME=id462 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
    maildrop, or the maildrop cannot be parsed), the POP3 server responds
@@ -288,9 +279,9 @@ RFC <A NAME=id462 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 5]
+Myers & Rose                Standards Track                     [Page 5]
 
-RFC <A NAME=id574 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
    Here are the POP3 commands valid in the TRANSACTION state:
@@ -344,9 +335,9 @@ RFC <A NAME=id574 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 6]
+Myers & Rose                Standards Track                     [Page 6]
 
-RFC <A NAME=id686 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
          Restrictions:
@@ -400,9 +391,9 @@ RFC <A NAME=id686 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 7]
+Myers & Rose                Standards Track                     [Page 7]
 
-RFC <A NAME=id798 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
              S: 2 200
@@ -438,7 +429,7 @@ RFC <A NAME=id798 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
          Examples:
              C: RETR 1
              S: +OK 120 octets
-             S: &#60;the POP3 server sends the entire message here&#62;
+             S: <the POP3 server sends the entire message here>
              S: .
 
 
@@ -456,9 +447,9 @@ RFC <A NAME=id798 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 8]
+Myers & Rose                Standards Track                     [Page 8]
 
-RFC <A NAME=id910 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
          Discussion:
@@ -512,9 +503,9 @@ RFC <A NAME=id910 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">19
 
 
 
-Myers &#38; Rose                Standards Track                     [Page 9]
+Myers & Rose                Standards Track                     [Page 9]
 
-RFC <A NAME=id1022 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
              with a positive response.
@@ -568,9 +559,9 @@ RFC <A NAME=id1022 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 10]
+Myers & Rose                Standards Track                    [Page 10]
 
-RFC <A NAME=id1134 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
              S: +OK dewey POP3 server signing off (2 messages left)
@@ -624,14 +615,14 @@ RFC <A NAME=id1134 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 11]
+Myers & Rose                Standards Track                    [Page 11]
 
-RFC <A NAME=id1246 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
-             S: &#60;the POP3 server sends the headers of the
+             S: <the POP3 server sends the headers of the
                 message, a blank line, and the first 10 lines
-                of the body of the message&#62;
+                of the body of the message>
              S: .
                 ...
              C: TOP 100 3
@@ -680,9 +671,9 @@ RFC <A NAME=id1246 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 12]
+Myers & Rose                Standards Track                    [Page 12]
 
-RFC <A NAME=id1358 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
           this specification is intended to permit unique-ids to be
@@ -736,9 +727,9 @@ RFC <A NAME=id1358 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 13]
+Myers & Rose                Standards Track                    [Page 13]
 
-RFC <A NAME=id1470 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
              password authentication.
@@ -792,9 +783,9 @@ RFC <A NAME=id1470 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 14]
+Myers & Rose                Standards Track                    [Page 14]
 
-RFC <A NAME=id1582 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
       APOP name digest
@@ -826,13 +817,13 @@ RFC <A NAME=id1582 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
              A POP3 server which implements the APOP command will
              include a timestamp in its banner greeting.  The syntax of
-             the timestamp corresponds to the `msg-id' in [RFC<A NAME=id1647 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc822.html">822</A>], and
+             the timestamp corresponds to the `msg-id' in [RFC822], and
              MUST be different each time the POP3 server issues a banner
              greeting.  For example, on a UNIX implementation in which a
              separate UNIX process is used for each instance of a POP3
              server, the syntax of the timestamp might be:
 
-                &#60;process-ID.clock@hostname&#62;
+                <process-ID.clock@hostname>
 
              where `process-ID' is the decimal value of the process's
              PID, clock is the decimal value of the system clock, and
@@ -843,14 +834,14 @@ RFC <A NAME=id1582 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
              issues the APOP command.  The `name' parameter has
              identical semantics to the `name' parameter of the USER
              command. The `digest' parameter is calculated by applying
-             the MD5 algorithm [RFC<A NAME=id1682 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1321.html">1321</A>] to a string consisting of the
+             the MD5 algorithm [RFC1321] to a string consisting of the
              timestamp (including angle-brackets) followed by a shared
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 15]
+Myers & Rose                Standards Track                    [Page 15]
 
-RFC <A NAME=id1696 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
              secret.  This shared secret is a string known only to the
@@ -878,14 +869,14 @@ RFC <A NAME=id1696 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
              -ERR permission denied
 
          Examples:
-             S: +OK POP3 server ready &#60;1896.697170952@dbc.mtview.ca.us&#62;
+             S: +OK POP3 server ready <1896.697170952@dbc.mtview.ca.us>
              C: APOP mrose c4c9334bac560ecc979e58001b3e22fb
              S: +OK maildrop has 1 message (369 octets)
 
              In this example, the shared  secret  is  the  string  `tan-
              staaf'.  Hence, the MD5 algorithm is applied to the string
 
-                &#60;1896.697170952@dbc.mtview.ca.us&#62;tanstaaf
+                <1896.697170952@dbc.mtview.ca.us>tanstaaf
 
              which produces a digest value of
 
@@ -904,9 +895,9 @@ RFC <A NAME=id1696 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 16]
+Myers & Rose                Standards Track                    [Page 16]
 
-RFC <A NAME=id1808 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
    IMAP, such as polling an existing connection for newly arrived
@@ -960,9 +951,9 @@ RFC <A NAME=id1808 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 17]
+Myers & Rose                Standards Track                    [Page 17]
 
-RFC <A NAME=id1920 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
       software by the following mechanism: "following a POP3 login by a
@@ -1016,16 +1007,16 @@ RFC <A NAME=id1920 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 18]
+Myers & Rose                Standards Track                    [Page 18]
 
-RFC <A NAME=id2032 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
 10. Example POP3 Session
 
-      S: &#60;wait for connection on TCP port 110&#62;
-      C: &#60;open connection&#62;
-      S:    +OK POP3 server ready &#60;1896.697170952@dbc.mtview.ca.us&#62;
+      S: <wait for connection on TCP port 110>
+      C: <open connection>
+      S:    +OK POP3 server ready <1896.697170952@dbc.mtview.ca.us>
       C:    APOP mrose c4c9334bac560ecc979e58001b3e22fb
       S:    +OK mrose's maildrop has 2 messages (320 octets)
       C:    STAT
@@ -1037,25 +1028,25 @@ RFC <A NAME=id2032 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
       S:    .
       C:    RETR 1
       S:    +OK 120 octets
-      S:    &#60;the POP3 server sends message 1&#62;
+      S:    <the POP3 server sends message 1>
       S:    .
       C:    DELE 1
       S:    +OK message 1 deleted
       C:    RETR 2
       S:    +OK 200 octets
-      S:    &#60;the POP3 server sends message 2&#62;
+      S:    <the POP3 server sends message 2>
       S:    .
       C:    DELE 2
       S:    +OK message 2 deleted
       C:    QUIT
       S:    +OK dewey POP3 server signing off (maildrop empty)
-      C:  &#60;close connection&#62;
-      S:  &#60;wait for next connection&#62;
+      C:  <close connection>
+      S:  <wait for next connection>
 
 11. Message Format
 
    All messages transmitted during a POP3 session are assumed to conform
-   to the standard for the format of Internet text messages [RFC<A NAME=id2107 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc822.html">822</A>].
+   to the standard for the format of Internet text messages [RFC822].
 
    It is important to note that the octet count for a message on the
    server host may differ from the octet count assigned to that message
@@ -1072,26 +1063,26 @@ RFC <A NAME=id2032 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 19]
+Myers & Rose                Standards Track                    [Page 19]
 
-RFC <A NAME=id2145 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
 12. References
 
-   [RFC<A NAME=id2156 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc821.html">821</A>] Postel, J., "Simple Mail Transfer Protocol", STD 10, RFC
+   [RFC821] Postel, J., "Simple Mail Transfer Protocol", STD 10, RFC
        821, USC/Information Sciences Institute, August 1982.
 
-   [RFC<A NAME=id2163 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc822.html">822</A>] Crocker, D., "Standard for the Format of ARPA-Internet Text
-       Messages", STD 11, RFC <A NAME=id2166 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc822.html">822</A>, University of Delaware, August 1982.
+   [RFC822] Crocker, D., "Standard for the Format of ARPA-Internet Text
+       Messages", STD 11, RFC 822, University of Delaware, August 1982.
 
-   [RFC<A NAME=id2172 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1321.html">1321</A>] Rivest, R., "The MD5 Message-Digest Algorithm", RFC <A NAME=id2171 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1321.html">1321</A>,
+   [RFC1321] Rivest, R., "The MD5 Message-Digest Algorithm", RFC 1321,
        MIT Laboratory for Computer Science, April 1992.
 
-   [RFC<A NAME=id2179 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1730.html">1730</A>] Crispin, M., "Internet Message Access Protocol - Version
-       4", RFC <A NAME=id2182 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1730.html">1730</A>, University of Washington, December 1994.
+   [RFC1730] Crispin, M., "Internet Message Access Protocol - Version
+       4", RFC 1730, University of Washington, December 1994.
 
-   [RFC<A NAME=id2188 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1734.html">1734</A>] Myers, J., "POP3 AUTHentication command", RFC <A NAME=id2187 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1734.html">1734</A>,
+   [RFC1734] Myers, J., "POP3 AUTHentication command", RFC 1734,
        Carnegie Mellon, December 1994.
 
 13. Security Considerations
@@ -1120,7 +1111,7 @@ RFC <A NAME=id2145 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 14. Acknowledgements
 
    The POP family has a long and checkered history.  Although primarily
-   a minor revision to RFC <A NAME=id2247 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1460.html">1460</A>, POP3 is based on the ideas presented in
+   a minor revision to RFC 1460, POP3 is based on the ideas presented in
    RFCs 918, 937, and 1081.
 
    In addition, Alfred Grimstad, Keith McCloghrie, and Neil Ostroff
@@ -1128,9 +1119,9 @@ RFC <A NAME=id2145 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 20]
+Myers & Rose                Standards Track                    [Page 20]
 
-RFC <A NAME=id2267 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
 15. Authors' Addresses
@@ -1184,14 +1175,14 @@ RFC <A NAME=id2267 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 21]
+Myers & Rose                Standards Track                    [Page 21]
 
-RFC <A NAME=id2379 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
-Appendix A. Differences from RFC <A NAME=id2386 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1725.html">1725</A>
+Appendix A. Differences from RFC 1725
 
-   This memo is a revision to RFC <A NAME=id2391 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1725.html">1725</A>, a Draft Standard.  It makes the
+   This memo is a revision to RFC 1725, a Draft Standard.  It makes the
    following changes from that document:
 
       - clarifies that command keywords are case insensitive.
@@ -1240,9 +1231,9 @@ Appendix A. Differences from RFC <A NAME=id2386 HREF="http://www.cis.ohio-state.
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 22]
+Myers & Rose                Standards Track                    [Page 22]
 
-RFC <A NAME=id2493 HREF="http://www.cis.ohio-state.edu/htbin/rfc/rfc1939.html">1939</A>                          POP3                          May 1996
+RFC 1939                          POP3                          May 1996
 
 
       - clarifies that the second argument to the TOP command is a
@@ -1296,8 +1287,5 @@ Appendix B. Command Index
 
 
 
-Myers &#38; Rose                Standards Track                    [Page 23]
+Myers & Rose                Standards Track                    [Page 23]
 
-</PRE>
-</BODY>
-</HTML>
