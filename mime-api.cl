@@ -35,7 +35,6 @@ v3: add mime structure parsing support."
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-api.cl,v 1.11 2008/11/20 21:30:12 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)

@@ -1,21 +1,3 @@
-#+(version= 7 0)
-(sys:defpatch "imap" 1
-  "v1: fetch-letter-sequence support."
-  :type :system
-  :post-loadable t)
-
-#+(version= 8 0)
-(sys:defpatch "imap" 1
-  "v1: fetch-letter-sequence support."
-  :type :system
-  :post-loadable t)
-
-#+(version= 8 1)
-(sys:defpatch "imap" 1
-  "v1: Add ssl/tls support for both imap/pop connections."
-  :type :system
-  :post-loadable t)
-
 ;; -*- mode: common-lisp; package: net.post-office -*-
 ;;
 ;; imap.cl
@@ -34,8 +16,24 @@
 ;; but without any warranty; without even the implied warranty of
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
-;;
-;; $Id: imap.cl,v 1.32 2009/03/25 22:46:02 layer Exp $
+
+#+(version= 7 0)
+(sys:defpatch "imap" 1
+  "v1: fetch-letter-sequence support."
+  :type :system
+  :post-loadable t)
+
+#+(version= 8 0)
+(sys:defpatch "imap" 1
+  "v1: fetch-letter-sequence support."
+  :type :system
+  :post-loadable t)
+
+#+(version= 8 1)
+(sys:defpatch "imap" 1
+  "v1: Add ssl/tls support for both imap/pop connections."
+  :type :system
+  :post-loadable t)
 
 ;; Description:
 ;;- This code in this file obeys the Lisp Coding Standard found in

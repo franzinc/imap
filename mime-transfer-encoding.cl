@@ -14,7 +14,6 @@
 ;; merchantability or fitness for a particular purpose.  See the GNU
 ;; Lesser General Public License for more details.
 ;;
-;; $Id: mime-transfer-encoding.cl,v 1.14 2007/08/02 18:14:31 layer Exp $
 
 (defpackage :net.post-office
   (:use #:lisp #:excl)
