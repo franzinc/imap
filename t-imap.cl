@@ -260,6 +260,10 @@ layer@franz.com" "layer" "franz.com")
 		     ))
     (test-nil (net.mail:parse-email-address bad)))
   )
+
+(defun test-rfc2822 ()
+  (test-t (net.mail:valid-email-domain-p "mail.upb.de"))
+  )
 	  
     
 (defun test-imap ()
@@ -268,6 +272,7 @@ layer@franz.com" "layer" "franz.com")
 		      (format t "Got imap condition: ~a~%" con))))
     (test-mime)
     (test-parse-email-address)
+    (test-rfc2822)
 ;;;; Only jkf is setup to run the tests.
     (when (string= "jkf" (sys:getenv "USER"))
       (test-connect)

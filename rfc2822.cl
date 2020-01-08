@@ -2,6 +2,12 @@
 ;;
 ;; See the file LICENSE for the full license governing this code.
 
+#+(version= 10 1)
+(sys:defpatch "rfc2822" 1
+  "v1: dns-record-exists-p: find correct cname entry to query."
+  :type :system
+  :post-loadable t)
+
 #+(version= 9 0)
 (sys:defpatch "rfc2822" 1
   "v1: parse-email-address: check length of local-part"
@@ -446,7 +452,8 @@ domain.
 ;;  :unknown -- couldn't get any answers.
 (defun dns-record-exists-p (domain type &key (try-cname t))
   (block nil
-    (let ((resp (socket:dns-query domain :decode nil :type type)))
+    (let ((resp (socket:dns-query domain :decode nil :type type))
+	  cname-item)
       (if (null resp)
 	  (return :unknown))
       (let ((flags (socket:dns-response-flags resp))
@@ -458,13 +465,12 @@ domain.
 	  (return :nxdomain))
 	 ((null answer)
 	  (return nil)) ;; no records of that type for that name
-	 ((member :cname answer
-		  :test #'eq :key #'socket:dns-rr-type)
+	 ((setq cname-item
+	    (find :cname answer :test #'eq :key #'socket:dns-rr-type))
 	  (if* (not try-cname)
 	     then (return nil)
 	     else ;; There should only be one cname answer.
-		  (return (dns-record-exists-p (socket:dns-rr-answer 
-						(first answer))
+		  (return (dns-record-exists-p (socket:dns-rr-answer cname-item)
 					       type :try-cname nil))))
 	 (t
 	  t))))))
