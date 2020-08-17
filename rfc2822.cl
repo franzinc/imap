@@ -14,12 +14,6 @@
   :type :system
   :post-loadable t)
 
-#+(version= 8 2)
-(sys:defpatch "rfc2822" 1
-  "v1: parse-email-address: check length of local-part"
-  :type :system
-  :post-loadable t)
-
 (defpackage :net.mail
   (:use #:lisp #:excl)
   (:export #:parse-email-address
@@ -502,3 +496,5 @@ domain.
        ((eq res :unknown)
 	(return :unknown)))
       nil)))
+
+(provide :rfc2822)
