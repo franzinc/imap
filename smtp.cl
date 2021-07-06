@@ -123,6 +123,7 @@ v2: add new type of server argument to send-letter."
 
 (defun send-letter (server from to message
 		    &key cc bcc subject reply-to headers
+                         from-name
 			 login password attachments)
   ;;
   ;; see documentation at the head of this file
@@ -176,7 +177,7 @@ message must be a string, stream, or mime-part-constructed, not ~s" message))))
 	  
 	  ;; Give priority to headers already provided in a mime-part.
 	  (if* (not (already-have "From"))
-	     then (format hdrs "From: ~a~%" from))
+	     then (format hdrs "From: ~:[~a~;~:*~a <~a>~]~%" from-name from))
 	
 	  (if* (not (already-have "To"))
 	     then (format hdrs "To: ~a~%" (list-to-delimited-string tos ", ")))
