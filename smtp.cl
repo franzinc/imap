@@ -1,19 +1,13 @@
 ;; -*- mode: common-lisp; package: net.post-office -*-
-;; send mail to an smtp server.  See rfc821 for the spec.
+;; send mail to an smtp server.
+;; Originally, we used rfc821, but rfc5321/rfc5322 are now the definitive
+;; resource for this code.
 ;;
 ;; See the file LICENSE for the full license governing this code.
 
-#+(or (version= 8 2)
-      (version= 9 0))
-(sys:defpatch "smtp" 2
-  "v1: Handle SMTP servers which violate SMTP SASL AUTH protocol;
-v2: add new type of server argument to send-letter."
-  :type :system
-  :post-loadable t)
-
-#+(version= 8 1)
+#+(version= 10 1)
 (sys:defpatch "smtp" 1
-  "v1: add smtp support for ssl connections and STARTTLS negotiation."
+  "v1: send-letter: fold header lines per rfc5322."
   :type :system
   :post-loadable t)
 
@@ -179,10 +173,10 @@ message must be a string, stream, or mime-part-constructed, not ~s" message))))
 	     then (format hdrs "From: ~a~%" from))
 	
 	  (if* (not (already-have "To"))
-	     then (format hdrs "To: ~a~%" (list-to-delimited-string tos ", ")))
+	     then (format hdrs "To: ~a~%" (fold-addresses tos)))
 	
 	  (if* (and ccs (not (already-have "Cc")))
-	     then (format hdrs "Cc: ~a~%" (list-to-delimited-string ccs ", ")))
+	     then (format hdrs "Cc: ~a~%" (fold-addresses ccs)))
 	
 	  (if* (and subject (not (already-have "Subject")))
 	     then (format hdrs "Subject: ~a~%" subject))
@@ -714,7 +708,50 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 			      
 	       else ; just do a hostname lookup
 		    (ignore-errors (socket:lookup-hostname name))))))
-		    
-  
-    
+
+(defun fold-addresses (addresses)
+  ;; Convert ADDRESSES into a string, being mindful of rfc5321
+  ;; and section 4.5.3.1.6:
+  ;;  Text Line
+  ;;    The maximum total length of a text line including the <CRLF> is
+  ;;    1000 octets (not counting the leading dot duplicated for
+  ;;    transparency).  This number may be increased by the use of SMTP
+  ;;    Service Extensions.
+  ;; and rfc5322 section 2.1.1:
+  ;;  Line Length Limits
+  ;;    There are two limits that this specification places on the number
+  ;;    of characters in a line.  Each line of characters MUST be no more
+  ;;    than 998 characters, and SHOULD be no more than 78 characters,
+  ;;    excluding the CRLF.
+  ;; The latter rfc defines "unfolding" as:
+  ;;  The process of moving from this folded multiple-line representation
+  ;;  of a header field to its single line representation is called
+  ;;  "unfolding".  Unfolding is accomplished by simply removing any CRLF
+  ;;  that is immediately followed by WSP.
+  ;;
+  ;; So, the continued lines just need some whitespace. We will use 4
+  ;; spaces after the CRLF.
+  (do* ((break-at
+	 ;; after this many characters on line, insert a newline
+	 70)
+	(spaces #.(make-string 4 :initial-element #\space))
+	(addrs addresses (cdr addrs))
+	(addr #1=(car addrs) #1#)
+	(lastp #1=(not (cdr addrs)) #1#)
+	(buf (make-string-output-stream :element-type 'character))
+	(lines '()))
+      ((null addrs)
+       (when (> (file-position buf) 0)
+	 (push (get-output-stream-string buf) lines))
+       (apply #'concatenate 'simple-string (nreverse lines)))
+    (princ addr buf)
+    (when (not lastp)
+      (princ "," buf)
+      (write-char #\space buf)
+      (when (>= (file-position buf) break-at)
+        (push (get-output-stream-string buf) lines)
+	(fresh-line buf)
+	(write-string spaces buf)))))
+
+
 (provide :smtp)

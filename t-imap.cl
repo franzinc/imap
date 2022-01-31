@@ -264,6 +264,32 @@ layer@franz.com" "layer" "franz.com")
 (defun test-rfc2822 ()
   (test-t (net.mail:valid-email-domain-p "mail.upb.de"))
   )
+
+(defparameter *folded-reference-value*
+    "First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com, First.Last@domain.com, 
+    First.Last@domain.com, First.Last@domain.com")
+
+(defun test-send-letter ()
+  ;; really a test of fold-addresses
+  (let* ((test-addresses
+	  (loop for i from 0 to 50 collect "First.Last@domain.com"))
+	 (folded (net.post-office::fold-addresses test-addresses)))
+    (test-equal *folded-reference-value* folded)))
 	  
     
 (defun test-imap ()
@@ -273,6 +299,7 @@ layer@franz.com" "layer" "franz.com")
     (test-mime)
     (test-parse-email-address)
     (test-rfc2822)
+    (test-send-letter)
 ;;;; Only jkf is setup to run the tests.
     (when (string= "jkf" (sys:getenv "USER"))
       (test-connect)
