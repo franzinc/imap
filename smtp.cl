@@ -6,8 +6,9 @@
 ;; See the file LICENSE for the full license governing this code.
 
 #+(version= 10 1)
-(sys:defpatch "smtp" 1
-  "v1: send-letter: fold header lines per rfc5322."
+(sys:defpatch "smtp" 2
+  "v2: allow SSL options to connect-to-mail-server to be changed, default to :tlsv1.2;
+v1: send-letter: fold header lines per rfc5322."
   :type :system
   :post-loadable t)
 
@@ -404,7 +405,7 @@ Attachments must be filenames, streams, or mime-part-constructed, not ~s"
 		(if* (and mechs starttls (member "STARTTLS" mechs :test #'string=))
 		   then (smtp-send-recv (sock (format nil "STARTTLS") msg)
 					(2 ;; ok
-					 (setq sock (acl-socket:make-ssl-client-stream sock :method :tlsv1)))
+					 (setq sock (acl-socket:make-ssl-client-stream sock :method (getf ssl-args :method :tlsv1.2))))
 					(t (smtp-transaction-error)))
 			(go ehlo)
 		 elseif (and mechs login password
