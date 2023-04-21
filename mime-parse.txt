@@ -1,4 +1,4 @@
-Prelimanary documenation.
+Preliminary documentation.
 
 Class: mime-part-parsed
 Subclass of: mime-part
