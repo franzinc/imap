@@ -414,22 +414,23 @@ domain.
 				(cdr whole))))))))
 
 #+ignore
-(defun test (&key errorp (compact t))
+(defun test (file &key errorp (compact t) temp)
   (let ((seen-addrs (make-hash-table :test #'equal)))
-    (dolist (file (excl.osi:command-output "find ~/mail/ -name \"[0-9][0-9]*\""))
-      (with-open-file (f file)
-	(let* ((part (net.post-office:parse-mime-structure f))
-	       (hdrs (net.post-office:mime-part-headers part)))
-	  (dolist (type '("From" "To" "Cc"))
-	    (let ((hdr (cdr (assoc type hdrs :test #'equalp))))
-	      (when (and hdr 
-			 (string/= hdr "")
-			 (not (gethash hdr seen-addrs)))
-		(setf (gethash hdr seen-addrs) t)
-		(if (null (extract-email-addresses hdr :require-domain nil
-						   :errorp errorp
-						   :compact compact))
-		    (format t "Failed to parse: ~s~%" hdr))))))))))
+    (with-open-file (f file)
+      (let* ((part (net.post-office:parse-mime-structure f))
+	     (hdrs (net.post-office:mime-part-headers part)))
+	(dolist (type '("From" "To" "Cc"))
+	  (let ((hdr (cdr (assoc type hdrs :test #'equalp))))
+	    (when (and hdr 
+		       (string/= hdr "")
+		       (not (gethash hdr seen-addrs)))
+	      (setf (gethash hdr seen-addrs) t)
+	      (if* (setq temp
+		     (extract-email-addresses hdr :require-domain nil
+					      :errorp errorp
+					      :compact compact))
+		 then (format t "have:~{ ~a~}~%" temp)
+		 else (format t "Failed to parse: ~s~%" hdr)))))))))
 
 ;; Ripped from maild:dns.cl and modified.
 
